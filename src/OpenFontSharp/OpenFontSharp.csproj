@@ -8,27 +8,32 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Description>OpenFontSharp is a Lightweight Pure C# library that allows Reading various Font type information</Description>
     <PackageTags>c#;font;reader;font information;font header;.net 8</PackageTags>
-    <RepositoryType>github</RepositoryType>
+    <RepositoryType>git</RepositoryType>
     <Title>OpenFontSharp</Title>
-    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
     <Authors>SmithSoftStudios</Authors>
 	  <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
 	  <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+	  <RepositoryUrl>https://github.com/SmithSoft-Studios/OpenFontSharp.git</RepositoryUrl>
+	  <PackageProjectUrl>https://github.com/SmithSoft-Studios/OpenFontSharp</PackageProjectUrl>
+	  <PackageIcon>OpenFontSharp.png</PackageIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Update="LICENSE.md">
+    <None Include="..\..\OpenFontSharp.png">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
-  </ItemGroup>
-
-	<ItemGroup>
-		<None Update="README.md">
+    <None Include="..\..\LICENSE.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+		<None Include="..\..\README.md">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
-	</ItemGroup>
+  </ItemGroup>
+
 
 </Project>
