@@ -12,6 +12,8 @@
     <Title>OpenFontSharp</Title>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <Authors>SmithSoftStudios</Authors>
+	  <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
+	  <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
   </PropertyGroup>
 
   <ItemGroup>
