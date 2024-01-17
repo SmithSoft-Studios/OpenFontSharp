@@ -44,7 +44,9 @@ namespace OpenFontSharp.Tests
       foreach (var font in ttfFonts)
       {
         var stream = new MemoryStream(File.ReadAllBytes(font));
-        lstFontInfo.Add(reader.Read(stream));
+        var info = reader.Read(stream);
+        Console.WriteLine($"Name:{info.Name},Style:{info.FontSubFamily}");
+        lstFontInfo.Add(info);
       }
 
       Assert.That(lstFontInfo.Count, Is.EqualTo(12));
