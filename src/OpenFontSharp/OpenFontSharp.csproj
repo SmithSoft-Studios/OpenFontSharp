@@ -11,17 +11,11 @@
     <RepositoryType>github</RepositoryType>
     <Title>OpenFontSharp</Title>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
     <Authors>SmithSoftStudios</Authors>
 	  <SatelliteResourceLanguages>none</SatelliteResourceLanguages>
 	  <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Include="..\..\LICENSE">
-      <Pack>True</Pack>
-      <PackagePath>\</PackagePath>
-    </None>
-  </ItemGroup>
 
   <ItemGroup>
     <None Update="LICENSE.md">
@@ -29,5 +23,12 @@
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
+
+	<ItemGroup>
+		<None Update="README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
 </Project>
