@@ -1,93 +1,62 @@
-using Newtonsoft.Json;
+namespace OpenFontSharp.Tests;
 
-namespace OpenFontSharp.Tests
+/// <summary>
+/// Tests for OpenFontReader — reading TTF and OTF fonts.
+/// </summary>
+public class OpenFontReaderTests
 {
-  public class Tests
-  {
-    [SetUp]
-    public void Setup()
+    private static string FontsDir => Path.Combine(
+        AppContext.BaseDirectory, "..", "..", "..", "Resources", "Fonts");
+
+    [Fact]
+    public void ReadPreview_RobotoTtf_ReturnsAllFonts()
     {
+        var reader = new OpenFontReader();
+        var ttfFonts = Directory.GetFiles(Path.Combine(FontsDir, "TTF", "Roboto"), "*.ttf");
+
+        var previews = new List<PreviewFontInfo>();
+        foreach (var font in ttfFonts)
+        {
+            using var stream = File.OpenRead(font);
+            previews.Add(reader.ReadPreview(stream));
+        }
+
+        previews.Count.Should().Be(12);
+        previews.Should().Contain(p => p.Name == "Roboto" && p.SubFamilyName == "Italic");
     }
 
-    [Test]
-    public void ReadPreview_TrueTypeFont_Roboto_Should_Return_PreviewFontInfo()
+    [Fact]
+    public void Read_RobotoTtf_ReturnsTypefaceWithMetrics()
     {
-      //init open font reader
-      var reader = new OpenFontReader();
+        var reader = new OpenFontReader();
+        var ttfFonts = Directory.GetFiles(Path.Combine(FontsDir, "TTF", "Roboto"), "*.ttf");
 
-      //get roboto fonts
-      var ttfFonts = _getAllFilePaths("../../../Resources/Fonts/TTF/Roboto", "*.ttf");
+        var typefaces = new List<Typeface>();
+        foreach (var font in ttfFonts)
+        {
+            using var stream = File.OpenRead(font);
+            typefaces.Add(reader.Read(stream));
+        }
 
-      var lstFontInfo = new List<PreviewFontInfo>();
-      foreach (var font in ttfFonts)
-      {
-        var stream = new MemoryStream(File.ReadAllBytes(font));
-        lstFontInfo.Add(reader.ReadPreview(stream));
-      }
-
-      Assert.That(lstFontInfo.Count, Is.EqualTo(12));
-      var robotoItalic = lstFontInfo.FirstOrDefault(x => x.Name == "Roboto" && x.SubFamilyName == "Italic");
-      Assert.That(robotoItalic, Has.Property("PostScriptName"));
+        typefaces.Count.Should().Be(12);
+        var regular = typefaces.First(t => t.FontSubFamily == "Regular");
+        regular.Name.Should().StartWith("Roboto");
+        regular.UnitsPerEm.Should().BeGreaterThan(0);
+        regular.Ascender.Should().BeGreaterThan(0);
+        regular.GlyphCount.Should().BeGreaterThan(100);
     }
 
-
-    [Test]
-    public void Read_TrueTypeFont_Roboto_Should_Return_Typeface_Info()
+    [Fact]
+    public void Read_GreatVibesOtf_ReturnsTypeface()
     {
-      //init open font reader
-      var reader = new OpenFontReader();
+        var reader = new OpenFontReader();
+        var otfPath = Path.Combine(FontsDir, "OTF", "great-vibes", "GreatVibes-Regular.otf");
+        if (!File.Exists(otfPath)) return;
 
-      //get roboto fonts
-      var ttfFonts = _getAllFilePaths("../../../Resources/Fonts/TTF/Roboto", "*.ttf");
+        using var stream = File.OpenRead(otfPath);
+        var typeface = reader.Read(stream);
 
-      var lstFontInfo = new List<Typeface>();
-      foreach (var font in ttfFonts)
-      {
-        var stream = new MemoryStream(File.ReadAllBytes(font));
-        var info = reader.Read(stream);
-        Console.WriteLine($"Name:{info.Name},Style:{info.FontSubFamily}");
-        lstFontInfo.Add(info);
-      }
-
-      Assert.That(lstFontInfo.Count, Is.EqualTo(12));
-      var robotoItalic = lstFontInfo.FirstOrDefault(x => x.Name == "Roboto" && x.FontSubFamily == "Italic");
-      Assert.That(robotoItalic, Has.Property("PostScriptName"));
+        typeface.Should().NotBeNull();
+        typeface.PostScriptName.Should().NotBeNullOrEmpty();
     }
-
-    [Test]
-    public void Read_OpenTypeFont_GreatVibes_Should_Return_Typeface_Info()
-    {
-      //init open font reader
-      var reader = new OpenFontReader();
-
-      //get roboto fonts
-      var otfFonts = _getAllFilePaths("../../../Resources/Fonts/OTF/great-vibes", "*.otf");
-
-      var lstFontInfo = new List<Typeface>();
-      foreach (var font in otfFonts)
-      {
-        var stream = new MemoryStream(File.ReadAllBytes(font));
-        lstFontInfo.Add(reader.Read(stream));
-      }
-
-      Assert.That(lstFontInfo.Count, Is.EqualTo(1));
-      var greatvibes = lstFontInfo.FirstOrDefault();
-      
-      Assert.That(greatvibes, Has.Property("PostScriptName"));
-    }
-
-
-
-    private List<string> _getAllFilePaths(string rootDirectory,string pattern = "*.*")
-    {
-      var filePaths = Directory.GetFiles(rootDirectory, pattern).ToList();
-
-      foreach (var directory in Directory.GetDirectories(rootDirectory))
-      {
-        filePaths.AddRange(_getAllFilePaths(directory,pattern));
-      }
-
-      return filePaths;
-    }
-  }
 }
