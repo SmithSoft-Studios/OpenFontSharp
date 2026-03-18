@@ -411,6 +411,16 @@ namespace OpenFontSharp
         }
 
 
+        /// <summary>Whether this font has TrueType outlines (glyf table) as opposed to CFF.</summary>
+        public bool HasTtfOutline => _hasTtfOutline;
+
+        /// <summary>
+        /// Gets the original font file data if it was stored during loading.
+        /// Returns null if the data was not retained.
+        /// </summary>
+        public byte[]? GetOriginalFontData() => _originalFontData;
+        internal byte[]? _originalFontData;
+
         internal BASE BaseTable { get; set; }
         internal GDEF GDEFTable { get; set; }
 
