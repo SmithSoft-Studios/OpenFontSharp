@@ -307,9 +307,45 @@ namespace OpenFontSharp
         public short GetLeftSideBearing(ushort glyphIndex) => _hMetrics.GetLeftSideBearing(glyphIndex);
         public short GetKernDistance(ushort leftGlyphIndex, ushort rightGlyphIndex)
         {
-            //DEPRECATED -> use OpenFont layout instead
-            return this.KernTable.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
+            if (KernTable == null) return 0;
+            return KernTable.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
         }
+
+        /// <summary>
+        /// Gets the PostScript glyph name for a given glyph index, or null if unavailable.
+        /// </summary>
+        public string? GetGlyphName(ushort glyphIndex)
+        {
+            if (_cff1FontSet != null && glyphIndex < _glyphs.Length)
+            {
+                return _glyphs[glyphIndex]._cff1GlyphData?.Name;
+            }
+            if (PostTable?.Version == 2 && PostTable.GlyphNames is { } names)
+            {
+                return names.TryGetValue(glyphIndex, out string? name) ? name : null;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Returns all kerning pairs from the kern table.
+        /// GPOS pair adjustment support is added by the BasicLatinShaper (US2).
+        /// </summary>
+        public IReadOnlyList<KerningPair> GetAllKerningPairs()
+        {
+            var pairs = new List<KerningPair>();
+
+            if (KernTable != null)
+            {
+                foreach (var (left, right, value) in KernTable.EnumerateAllPairs())
+                {
+                    pairs.Add(new KerningPair(left, right, value, KerningSource.KernTable));
+                }
+            }
+
+            return pairs;
+        }
+
         //
         public Bounds Bounds { get; private set; }
         public ushort UnitsPerEm { get; private set; }
@@ -374,6 +410,16 @@ namespace OpenFontSharp
             return (targetPointSize * resolution / s_pointsPerInch) / this.UnitsPerEm;
         }
 
+
+        /// <summary>Whether this font has TrueType outlines (glyf table) as opposed to CFF.</summary>
+        public bool HasTtfOutline => _hasTtfOutline;
+
+        /// <summary>
+        /// Gets the original font file data if it was stored during loading.
+        /// Returns null if the data was not retained.
+        /// </summary>
+        public byte[]? GetOriginalFontData() => _originalFontData;
+        internal byte[]? _originalFontData;
 
         internal BASE BaseTable { get; set; }
         internal GDEF GDEFTable { get; set; }

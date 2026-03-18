@@ -147,6 +147,21 @@ namespace OpenFontSharp.Tables.Others
             }
         }
 
+        /// <summary>
+        /// Enumerates all kerning pairs from all subtables.
+        /// Returns (leftGlyphId, rightGlyphId, value) tuples.
+        /// </summary>
+        internal IEnumerable<(ushort Left, ushort Right, short Value)> EnumerateAllPairs()
+        {
+            foreach (var subTable in _kernSubTables)
+            {
+                foreach (var kv in subTable.EnumeratePairs())
+                {
+                    yield return kv;
+                }
+            }
+        }
+
         class KerningSubTable
         {
             List<KerningPair> _kernPairs;
@@ -171,6 +186,15 @@ namespace OpenFontSharp.Tables.Others
 
                 _kernDic.TryGetValue(key, out short found);
                 return found;
+            }
+            internal IEnumerable<(ushort Left, ushort Right, short Value)> EnumeratePairs()
+            {
+                foreach (var kv in _kernDic)
+                {
+                    ushort left = (ushort)(kv.Key >> 16);
+                    ushort right = (ushort)(kv.Key & 0xFFFF);
+                    yield return (left, right, kv.Value);
+                }
             }
         }
 
