@@ -310,6 +310,42 @@ namespace OpenFontSharp
             //DEPRECATED -> use OpenFont layout instead
             return this.KernTable.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
         }
+
+        /// <summary>
+        /// Gets the PostScript glyph name for a given glyph index, or null if unavailable.
+        /// </summary>
+        public string? GetGlyphName(ushort glyphIndex)
+        {
+            if (_cff1FontSet != null && glyphIndex < _glyphs.Length)
+            {
+                return _glyphs[glyphIndex]._cff1GlyphData?.Name;
+            }
+            if (PostTable?.Version == 2 && PostTable.GlyphNames is { } names)
+            {
+                return names.TryGetValue(glyphIndex, out string? name) ? name : null;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Returns all kerning pairs from the kern table.
+        /// GPOS pair adjustment support is added by the BasicLatinShaper (US2).
+        /// </summary>
+        public IReadOnlyList<KerningPair> GetAllKerningPairs()
+        {
+            var pairs = new List<KerningPair>();
+
+            if (KernTable != null)
+            {
+                foreach (var (left, right, value) in KernTable.EnumerateAllPairs())
+                {
+                    pairs.Add(new KerningPair(left, right, value, KerningSource.KernTable));
+                }
+            }
+
+            return pairs;
+        }
+
         //
         public Bounds Bounds { get; private set; }
         public ushort UnitsPerEm { get; private set; }
