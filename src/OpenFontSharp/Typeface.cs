@@ -307,8 +307,8 @@ namespace OpenFontSharp
         public short GetLeftSideBearing(ushort glyphIndex) => _hMetrics.GetLeftSideBearing(glyphIndex);
         public short GetKernDistance(ushort leftGlyphIndex, ushort rightGlyphIndex)
         {
-            //DEPRECATED -> use OpenFont layout instead
-            return this.KernTable.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
+            if (KernTable == null) return 0;
+            return KernTable.GetKerningDistance(leftGlyphIndex, rightGlyphIndex);
         }
 
         /// <summary>
