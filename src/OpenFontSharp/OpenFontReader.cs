@@ -218,11 +218,41 @@ namespace OpenFontSharp
         public Typeface Read(Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
             Typeface typeface = new Typeface();
+
+            // Retain the original bytes. Subsetting has to copy glyph records verbatim,
+            // and the parsed model cannot reproduce them faithfully, so a Typeface that
+            // has forgotten where it came from cannot be subset at all.
+            byte[] originalData = CaptureOriginalBytes(stream, streamStartOffset);
+
             if (Read(typeface, null, stream, streamStartOffset, readFlags))
             {
+                typeface._originalFontData = originalData;
                 return typeface;
             }
             return null;
+        }
+
+        private static byte[] CaptureOriginalBytes(Stream stream, int streamStartOffset)
+        {
+            if (!stream.CanSeek)
+                return null;
+
+            long resumePosition = stream.Position;
+            try
+            {
+                stream.Position = streamStartOffset;
+                using var buffer = new MemoryStream();
+                stream.CopyTo(buffer);
+                return buffer.ToArray();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                return null;
+            }
+            finally
+            {
+                stream.Position = resumePosition;
+            }
         }
 
         internal bool Read(Typeface typeface, RestoreTicket ticket, Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
