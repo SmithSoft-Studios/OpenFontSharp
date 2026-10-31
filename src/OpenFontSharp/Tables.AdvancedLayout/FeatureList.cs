@@ -23,11 +23,21 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
     //[GSUB = glyph substitution, GPOS = glyph positioning]
 
+    /// <summary>
+    /// Holds the feature records declared by an OpenType layout table.
+    /// </summary>
     public class FeatureList
     {
 
+        /// <summary>Gets the feature tables in their zero-based FeatureList order.</summary>
+        public FeatureTable[] featureTables = Array.Empty<FeatureTable>();
 
-        public FeatureTable[] featureTables;
+        /// <summary>
+        /// Reads a FeatureList table at the specified stream offset.
+        /// </summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="beginAt">The offset of the FeatureList table.</param>
+        /// <returns>The parsed feature list.</returns>
         public static FeatureList CreateFrom(BinaryReader reader, long beginAt)
         {
             //https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2
@@ -119,8 +129,17 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         //
 
 
+        /// <summary>
+        /// Describes the lookups used to implement one layout feature.
+        /// </summary>
         public class FeatureTable
         {
+            /// <summary>
+            /// Reads a Feature table at the specified stream offset.
+            /// </summary>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="beginAt">The offset of the Feature table.</param>
+            /// <returns>The parsed feature table.</returns>
             public static FeatureTable CreateFrom(BinaryReader reader, long beginAt)
             {
                 reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -132,8 +151,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 featureTable.LookupListIndices = Utils.ReadUInt16Array(reader, lookupCount);
                 return featureTable;
             }
-            public ushort[] LookupListIndices { get; private set; }
+            /// <summary>Gets the indices of the lookups that implement this feature.</summary>
+            public ushort[] LookupListIndices { get; private set; } = Array.Empty<ushort>();
+            /// <summary>Gets or sets the four-byte OpenType feature tag.</summary>
             public uint FeatureTag { get; set; }
+            /// <summary>Gets the feature tag as its four-character string representation.</summary>
             public string TagName => Utils.TagToString(this.FeatureTag);
 #if DEBUG
             public override string ToString()

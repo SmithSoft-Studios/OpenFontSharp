@@ -14,7 +14,9 @@ public class ShapingTests
             AppContext.BaseDirectory, "..", "..", "..", "Resources", "Fonts",
             "TTF", "Roboto", "Roboto-Regular.ttf");
         using var stream = File.OpenRead(path);
-        return reader.Read(stream);
+        var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
+        return typeface;
     }
 
     [Fact]

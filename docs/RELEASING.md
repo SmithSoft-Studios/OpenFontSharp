@@ -9,7 +9,9 @@ OpenFontSharp ships as one NuGet package. TrinePDF depends on it, so release Ope
 3. Merge that change to `main` through a pull request.
 4. Tag and push: `git tag v1.1.0 && git push origin v1.1.0`.
 
-The release workflow refuses to publish unless the tag equals `<Version>`, the tests pass and `.github/scripts/check-packages.sh` can install the package into a clean project and subset a font with it. Tags containing `-` become GitHub pre-releases. A failed release can be re-run; a version already on nuget.org is skipped.
+The release workflow refuses to publish unless the tag equals `<Version>`, the tests pass and `.github/scripts/check-packages.sh` can install the package into a clean project and subset a font with it. The package check also requires the XML API documentation under `lib/net10.0`. Tags containing `-` become GitHub pre-releases. A failed release can be re-run; a version already on nuget.org is skipped.
+
+Before choosing a version for the nullable cleanup, review the [source-compatibility notice](COMPATIBILITY.md) and include it in the release notes. The CLR signatures are unchanged, but consumers treating nullable warnings as errors may need new presence guards.
 
 Check the package locally first with `bash .github/scripts/check-packages.sh` (needs network access).
 

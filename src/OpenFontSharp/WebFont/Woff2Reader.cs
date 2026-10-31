@@ -59,7 +59,12 @@ namespace OpenFontSharp.WebFont
         public uint origLength;
         public uint transformLength;
         //translated values 
-        public string Name { get; set; } //translate from tag
+        string? _name;
+        public string Name
+        {
+            get => _name ?? throw new System.NullReferenceException("The WOFF2 directory tag has not been decoded.");
+            set => _name = value;
+        } //translate from tag
         public byte PreprocessingTransformation { get; set; }
         public long ExpectedStartAt { get; set; }
 #if DEBUG
@@ -71,11 +76,17 @@ namespace OpenFontSharp.WebFont
     }
 
 
+    /// <summary>Decompresses a WOFF2 font data block using Brotli.</summary>
+    /// <param name="compressedInput">The compressed font data.</param>
+    /// <param name="decompressStream">The stream receiving the decompressed data.</param>
+    /// <returns>True if decompression succeeds; otherwise false.</returns>
     public delegate bool BrotliDecompressStreamFunc(byte[] compressedInput, Stream decompressStream);
 
+    /// <summary>Provides the optional default Brotli decompressor for WOFF2 fonts.</summary>
     public static class Woff2DefaultBrotliDecompressFunc
     {
-        public static BrotliDecompressStreamFunc DecompressHandler;
+        /// <summary>The decompressor, or null when none is installed. WOFF2 reading then fails.</summary>
+        public static BrotliDecompressStreamFunc? DecompressHandler;
     }
 
     class TransformedGlyf : UnreadTableEntry
@@ -191,7 +202,7 @@ namespace OpenFontSharp.WebFont
             long expected_EndAt = expected_InstructionStreamStartAt + instructionStreamSize;
 
             //--------------------------------------------- 
-            Glyph[] glyphs = new Glyph[numGlyphs];
+            Glyph?[] glyphs = new Glyph?[numGlyphs];
             TempGlyph[] allGlyphs = new TempGlyph[numGlyphs];
             List<ushort> compositeGlyphs = new List<ushort>();
             int contourCount = 0;
@@ -386,7 +397,7 @@ namespace OpenFontSharp.WebFont
             for (ushort i = 0; i < numGlyphs; ++i)
             {
                 TempGlyph tempGlyph = allGlyphs[i];
-                Glyph glyph = glyphs[i];
+                Glyph glyph = glyphs[i] ?? throw new System.NullReferenceException("A WOFF2 glyph was not reconstructed.");
 
                 byte hasBbox = bboxBitmap[i];
                 if (hasBbox == 1)
@@ -443,7 +454,8 @@ namespace OpenFontSharp.WebFont
                 TempGlyph tempGlyph = allGlyphs[i];
                 if (tempGlyph.instructionLen > 0)
                 {
-                    glyphs[i].GlyphInstructions = reader.ReadBytes(tempGlyph.instructionLen);
+                    Glyph glyph = glyphs[i] ?? throw new System.NullReferenceException("A WOFF2 glyph was not reconstructed.");
+                    glyph.GlyphInstructions = reader.ReadBytes(tempGlyph.instructionLen);
                 }
             }
 
@@ -454,12 +466,13 @@ namespace OpenFontSharp.WebFont
             }
 #endif
 
-            glyfTable.Glyphs = glyphs;
+            // Simple and empty glyphs are filled first, then every composite is resolved.
+            glyfTable.Glyphs = glyphs!;
         }
 
         static Bounds FindSimpleGlyphBounds(Glyph glyph)
         {
-            GlyphPointF[] glyphPoints = glyph.GlyphPoints;
+            GlyphPointF[] glyphPoints = glyph.GlyphPoints ?? throw new System.NullReferenceException("A reconstructed simple glyph must have outline points.");
 
             int j = glyphPoints.Length;
             float xmin = float.MaxValue;
@@ -503,7 +516,7 @@ namespace OpenFontSharp.WebFont
             return expandArr;
         }
 
-        static Glyph BuildSimpleGlyphStructure(BinaryReader glyphStreamReader,
+        static Glyph? BuildSimpleGlyphStructure(BinaryReader glyphStreamReader,
             ref TempGlyph tmpGlyph,
             Glyph emptyGlyph,
             ushort[] pntPerContours, ref int pntContourIndex,
@@ -733,7 +746,7 @@ namespace OpenFontSharp.WebFont
             return Glyf.HasFlag(flags, Glyf.CompositeGlyphFlags.WE_HAVE_INSTRUCTIONS);
         }
 
-        static Glyph ReadCompositeGlyph(Glyph[] createdGlyphs, BinaryReader reader, ushort compositeGlyphIndex, Glyph emptyGlyph)
+        static Glyph ReadCompositeGlyph(Glyph?[] createdGlyphs, BinaryReader reader, ushort compositeGlyphIndex, Glyph emptyGlyph)
         {
 
             //Decoding of Composite Glyphs
@@ -754,7 +767,7 @@ namespace OpenFontSharp.WebFont
 
 
 
-            Glyph finalGlyph = null;
+            Glyph? finalGlyph = null;
             Glyf.CompositeGlyphFlags flags;
             do
             {
@@ -769,7 +782,8 @@ namespace OpenFontSharp.WebFont
                     reader.BaseStream.Position = storedOffset;
                 }
 
-                Glyph newGlyph = Glyph.TtfOutlineGlyphClone(createdGlyphs[glyphIndex], compositeGlyphIndex);
+                Glyph component = createdGlyphs[glyphIndex] ?? throw new System.NullReferenceException("A WOFF2 component glyph was not reconstructed.");
+                Glyph newGlyph = Glyph.TtfOutlineGlyphClone(component, compositeGlyphIndex);
 
                 short arg1 = 0;
                 short arg2 = 0;
@@ -977,7 +991,7 @@ namespace OpenFontSharp.WebFont
         class TripleEncodingTable
         {
 
-            static TripleEncodingTable s_encTable;
+            static TripleEncodingTable? s_encTable;
 
             List<TripleEncodingRecord> _records = new List<TripleEncodingRecord>();
             public static TripleEncodingTable GetEncTable()
@@ -1256,15 +1270,16 @@ namespace OpenFontSharp.WebFont
 #endif
                 _records.Add(rec);
             }
-            void BuildRecords(byte byteCount, byte xbits, byte ybits, ushort[] deltaXs, ushort[] deltaYs)
+            void BuildRecords(byte byteCount, byte xbits, byte ybits, ushort[]? deltaXs, ushort[]? deltaYs)
             {
                 if (deltaXs == null)
                 {
+                    ushort[] yDeltas = deltaYs ?? throw new System.NullReferenceException("Triplet encoding requires at least one delta axis.");
                     //(set 1.1)
-                    for (int y = 0; y < deltaYs.Length; ++y)
+                    for (int y = 0; y < yDeltas.Length; ++y)
                     {
-                        AddRecord(byteCount, xbits, ybits, 0, deltaYs[y], 0, -1);
-                        AddRecord(byteCount, xbits, ybits, 0, deltaYs[y], 0, 1);
+                        AddRecord(byteCount, xbits, ybits, 0, yDeltas[y], 0, -1);
+                        AddRecord(byteCount, xbits, ybits, 0, yDeltas[y], 0, 1);
                     }
                 }
                 else if (deltaYs == null)
@@ -1308,7 +1323,7 @@ namespace OpenFontSharp.WebFont
         public Woff2TableDirectory TableDir { get; }
         public override T CreateTableEntry<T>(BinaryReader reader, T expectedResult)
         {
-            GlyphLocations loca = expectedResult as GlyphLocations;
+            GlyphLocations? loca = expectedResult as GlyphLocations;
             if (loca == null) throw new System.NotSupportedException();
 
             //nothing todo here :)
@@ -1320,9 +1335,9 @@ namespace OpenFontSharp.WebFont
     class Woff2Reader
     {
 
-        Woff2Header _header;
+        Woff2Header? _header;
 
-        public BrotliDecompressStreamFunc DecompressHandler;
+        public BrotliDecompressStreamFunc? DecompressHandler;
 
         public Woff2Reader()
         {
@@ -1355,7 +1370,7 @@ namespace OpenFontSharp.WebFont
         }
 #endif
 
-        public PreviewFontInfo ReadPreview(BinaryReader reader)
+        public PreviewFontInfo? ReadPreview(BinaryReader reader)
         {
 
             _header = ReadHeader(reader);
@@ -1405,7 +1420,7 @@ namespace OpenFontSharp.WebFont
             }
         }
 
-        internal bool Read(Typeface typeface, BinaryReader reader, RestoreTicket ticket)
+        internal bool Read(Typeface typeface, BinaryReader reader, RestoreTicket? ticket)
         {
             _header = ReadHeader(reader);
             if (_header == null) { return false; }  //=> return here and notify user too.
@@ -1455,7 +1470,7 @@ namespace OpenFontSharp.WebFont
             }
         }
 
-        Woff2Header ReadHeader(BinaryReader reader)
+        Woff2Header? ReadHeader(BinaryReader reader)
         {
             //WOFF2 Header
             //UInt32  signature             0x774F4632 'wOF2'
@@ -1508,7 +1523,7 @@ namespace OpenFontSharp.WebFont
         Woff2TableDirectory[] ReadTableDirectories(BinaryReader reader)
         {
 
-            uint tableCount = (uint)_header.numTables; //?
+            uint tableCount = (_header ?? throw new System.NullReferenceException("The WOFF2 header has not been read.")).numTables;
             var tableDirs = new Woff2TableDirectory[tableCount];
 
             long expectedTableStartAt = 0;
@@ -1615,7 +1630,7 @@ namespace OpenFontSharp.WebFont
             for (int i = 0; i < woffTableDirs.Length; ++i)
             {
                 Woff2TableDirectory woffTableDir = woffTableDirs[i];
-                UnreadTableEntry unreadTableEntry = null;
+                UnreadTableEntry unreadTableEntry;
 
 
 

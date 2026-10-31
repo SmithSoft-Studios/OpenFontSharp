@@ -2,6 +2,7 @@
 //Apache2, 2014-2016, Samuel Carlsson, WinterDev
 
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 namespace OpenFontSharp.Tables
 {
     class TableEntryCollection
@@ -11,7 +12,8 @@ namespace OpenFontSharp.Tables
 
         public void AddEntry(TableEntry en) => _tables.Add(en.Name, en);
 
-        public bool TryGetTable(string tableName, out TableEntry entry) => _tables.TryGetValue(tableName, out entry);
+        public bool TryGetTable(string tableName, [NotNullWhen(true)] out TableEntry? entry) =>
+            _tables.TryGetValue(tableName, out entry);
 
         public void ReplaceTable(TableEntry table) => _tables[table.Name] = table;
 

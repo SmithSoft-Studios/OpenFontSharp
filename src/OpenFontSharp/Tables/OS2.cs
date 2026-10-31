@@ -6,13 +6,16 @@ namespace OpenFontSharp.Tables
 
     //https://docs.microsoft.com/en-us/typography/opentype/spec/os2
     /// <summary>
-    /// OS2 and Windows metrics, 
-    /// consists of a set of metrics and other data
-    /// that are REQUIRED in OpenType fonts.
+    /// OS/2 and Windows metrics table, containing typographic metrics, classification, and character coverage.
     /// </summary>
     public class OS2Table : TableEntry
     {
+        /// <summary>
+        /// The OpenType tag identifying the OS/2 metrics table.
+        /// </summary>
         public const string _N = "OS/2";
+
+        /// <inheritdoc />
         public override string Name => _N;
         //
 
@@ -22,8 +25,11 @@ namespace OpenFontSharp.Tables
         //uint16 	usWeightClass 	 
         //uint16 	usWidthClass 	 
         //uint16 	fsType 	 
+        /// <summary>Gets the OS/2 table format version, from 0 through 5.</summary>
         public ushort version;          //0-5
+        /// <summary>Gets the average character width in font units.</summary>
         public short xAvgCharWidth;     //just average, not recommend to use.
+        /// <summary>Gets the visual weight class, conventionally ranging from 1 (thin) to 1000 (black).</summary>
         public ushort usWeightClass;    //visual weight (degree of blackness or thickness of strokes), 0-1000
 
         //usWeightClass:
@@ -41,7 +47,7 @@ namespace OpenFontSharp.Tables
         //800 	Extra-bold  	FW_EXTRABOLD
         //      (Ultra-bold)
         //900 	Black (Heavy) 	FW_BLACK
-
+        /// <summary>Gets the relative width class, where 5 represents normal width.</summary>
         public ushort usWidthClass;     //A relative change from the normal aspect ratio (width to height ratio), 
                                         //as specified by a font designer for the glyphs in a font.
                                         //Although every glyph in a font may have a different numeric aspect ratio, 
@@ -61,14 +67,7 @@ namespace OpenFontSharp.Tables
         //7 	Expanded 	        FWIDTH_EXPANDED 	    125
         //8 	Extra-expanded 	    FWIDTH_EXTRA_EXPANDED 	150
         //9 	Ultra-expanded      FWIDTH_ULTRA_EXPANDED 	200
-
-
-
-
-
-
-
-
+        /// <summary>Gets the embedding-permission flags for the font.</summary>
         public ushort fsType;           //Type flags., embedding licensing rights for the font
 
         //int16 	ySubscriptXSize 	 
@@ -82,74 +81,113 @@ namespace OpenFontSharp.Tables
         //int16 	yStrikeoutSize 	 
         //int16 	yStrikeoutPosition 	 
         //int16 	sFamilyClass 	
+        /// <summary>Gets the recommended x-size of subscript glyphs in font units.</summary>
         public short ySubscriptXSize;
+        /// <summary>Gets the recommended y-size of subscript glyphs in font units.</summary>
         public short ySubscriptYSize;
+        /// <summary>Gets the recommended horizontal offset of subscript glyphs in font units.</summary>
         public short ySubscriptXOffset;
+        /// <summary>Gets the recommended vertical offset of subscript glyphs in font units.</summary>
         public short ySubscriptYOffset;
+        /// <summary>Gets the recommended x-size of superscript glyphs in font units.</summary>
         public short ySuperscriptXSize;
+        /// <summary>Gets the recommended y-size of superscript glyphs in font units.</summary>
         public short ySuperscriptYSize;
+        /// <summary>Gets the recommended horizontal offset of superscript glyphs in font units.</summary>
         public short ySuperscriptXOffset;
+        /// <summary>Gets the recommended vertical offset of superscript glyphs in font units.</summary>
         public short ySuperscriptYOffset;
+        /// <summary>Gets the strikeout stroke thickness in font units.</summary>
         public short yStrikeoutSize;
+        /// <summary>Gets the strikeout position relative to the baseline in font units.</summary>
         public short yStrikeoutPosition;
+        /// <summary>Gets the IBM family classification for the font design.</summary>
         public short sFamilyClass;      //This parameter is a classification of font-family design. ,see https://www.microsoft.com/typography/otspec/ibmfc.htm
 
         //uint8 	panose[10] 	        (array of bytes,len =10)
-        public byte[] panose;
+        /// <summary>Gets the ten-byte PANOSE classification, or <see langword="null"/> before the table has been read.</summary>
+        public byte[]? panose;
         //uint32 	ulUnicodeRange1 	Bits 0-31
         //uint32 	ulUnicodeRange2 	Bits 32-63
         //uint32 	ulUnicodeRange3 	Bits 64-95
         //uint32 	ulUnicodeRange4 	Bits 96-127
+        /// <summary>Gets the first 32-bit block of Unicode range coverage flags.</summary>
         public uint ulUnicodeRange1;
+        /// <summary>Gets the second 32-bit block of Unicode range coverage flags.</summary>
         public uint ulUnicodeRange2;
+        /// <summary>Gets the third 32-bit block of Unicode range coverage flags.</summary>
         public uint ulUnicodeRange3;
+        /// <summary>Gets the fourth 32-bit block of Unicode range coverage flags.</summary>
         public uint ulUnicodeRange4;
 
         //Tag 	    achVendID[4] 	    char 4 
+        /// <summary>Gets the four-byte registered vendor identifier, represented as a big-endian integer.</summary>
         public uint achVendID;          //see 'registered venders' at https://www.microsoft.com/typography/links/vendorlist.aspx
 
         //uint16 	fsSelection 	 
         //uint16 	usFirstCharIndex 	 
         //uint16 	usLastCharIndex 
+        /// <summary>Gets the font-selection flags describing style and typographic characteristics.</summary>
         public ushort fsSelection;      //Contains information concerning the nature of the font patterns
+        /// <summary>Gets the first Unicode character supported by the font's character map, when supplied.</summary>
         public ushort usFirstCharIndex;
+        /// <summary>Gets the last Unicode character supported by the font's character map, when supplied.</summary>
         public ushort usLastCharIndex;
         //int16 	sTypoAscender 	 
         //int16 	sTypoDescender 	 
         //int16 	sTypoLineGap 	 
+        /// <summary>Gets the typographic ascender in font units.</summary>
         public short sTypoAscender;
+        /// <summary>Gets the typographic descender in font units, normally negative.</summary>
         public short sTypoDescender;
+        /// <summary>Gets the recommended typographic line gap in font units.</summary>
         public short sTypoLineGap;
         //uint16 	usWinAscent 	 
         //uint16 	usWinDescent 	 
         //uint32 	ulCodePageRange1 	Bits 0-31
         //uint32 	ulCodePageRange2 	Bits 32-63
+        /// <summary>Gets the Windows clipping ascent in font units.</summary>
         public ushort usWinAscent;
+        /// <summary>Gets the Windows clipping descent in font units.</summary>
         public ushort usWinDescent;
+        /// <summary>Gets the first 32-bit block of supported Windows code-page flags.</summary>
         public uint ulCodePageRange1;
+        /// <summary>Gets the second 32-bit block of supported Windows code-page flags.</summary>
         public uint ulCodePageRange2;
         //int16 	sxHeight 	 
         //int16 	sCapHeight 	  
+        /// <summary>Gets the height of a lowercase x in font units.</summary>
         public short sxHeight;
+        /// <summary>Gets the height of uppercase characters in font units.</summary>
         public short sCapHeight;
         //uint16 	usDefaultChar 	 
         //uint16 	usBreakChar 	 
         //uint16 	usMaxContext 	 
         //uint16 	usLowerOpticalPointSize 	 
         //uint16 	usUpperOpticalPointSize
+        /// <summary>Gets the glyph index used for the default character.</summary>
         public ushort usDefaultChar;
+        /// <summary>Gets the glyph index used for the break character.</summary>
         public ushort usBreakChar;
+        /// <summary>Gets the maximum contextual length required by the font's layout features.</summary>
         public ushort usMaxContext;
+        /// <summary>Gets the lower end of the optical point-size range, in twentieths of a point.</summary>
         public ushort usLowerOpticalPointSize;
+        /// <summary>Gets the upper end of the optical point-size range, in twentieths of a point.</summary>
         public ushort usUpperOpticalPointSize;
 
 
 #if DEBUG
+        /// <inheritdoc />
         public override string ToString()
         {
             return version + "," + Utils.TagToString(this.achVendID);
         }
 #endif
+        /// <summary>
+        /// Reads the versioned OS/2 table fields from the font data stream.
+        /// </summary>
+        /// <param name="reader">The stream positioned at the start of the table.</param>
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //Six versions of the OS/2 table have been defined: versions 0 to 5

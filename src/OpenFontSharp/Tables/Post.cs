@@ -52,8 +52,8 @@ namespace OpenFontSharp.Tables
         public const string _N = "post";
         public override string Name => _N;
         // 
-        Dictionary<ushort, string> _glyphNames;
-        Dictionary<string, ushort> _glyphIndiceByName;
+        Dictionary<ushort, string>? _glyphNames;
+        Dictionary<string, ushort>? _glyphIndiceByName;
 
         public int Version { get; private set; }
         public uint ItalicAngle { get; private set; }
@@ -148,7 +148,7 @@ namespace OpenFontSharp.Tables
         }
 
 
-        internal Dictionary<ushort, string> GlyphNames => _glyphNames;
+        internal Dictionary<ushort, string>? GlyphNames => _glyphNames;
         //
         internal ushort GetGlyphIndex(string glyphName)
         {
@@ -157,22 +157,24 @@ namespace OpenFontSharp.Tables
                 return 0; //not found!
             }
             //
-            if (_glyphIndiceByName == null)
+            Dictionary<string, ushort>? glyphIndices = _glyphIndiceByName;
+            if (glyphIndices == null)
             {
                 //------
                 //create a cache
-                _glyphIndiceByName = new Dictionary<string, ushort>();
+                glyphIndices = new Dictionary<string, ushort>();
                 foreach (var kp in _glyphNames)
                 {
                     //TODO: review how to handle duplicated glyph name
                     //1. report the error
                     //2. handle ...
 
-                    _glyphIndiceByName[kp.Value] = kp.Key;
+                    glyphIndices[kp.Value] = kp.Key;
                     //_glyphIndiceByName.Add(kp.Value, kp.Key);
                 }
+                _glyphIndiceByName = glyphIndices;
             }
-            _glyphIndiceByName.TryGetValue(glyphName, out ushort found);
+            glyphIndices.TryGetValue(glyphName, out ushort found);
             return found;
         }
 

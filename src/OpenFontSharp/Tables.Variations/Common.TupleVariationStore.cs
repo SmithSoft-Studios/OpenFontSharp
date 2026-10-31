@@ -156,8 +156,13 @@ namespace OpenFontSharp.Tables.Variations
 
 
         //---------
-        public ushort[] PrivatePoints;
-        public short[] PackedDeltasXY;
+        public ushort[]? PrivatePoints;
+        short[]? _parsedDeltas;
+        public short[] PackedDeltasXY
+        {
+            get => _parsedDeltas ?? throw new NullReferenceException("The tuple variation delta payload has not been parsed.");
+            set => _parsedDeltas = value;
+        }
 
 
         //Note that the size of the TupleVariationHeader is variable, 

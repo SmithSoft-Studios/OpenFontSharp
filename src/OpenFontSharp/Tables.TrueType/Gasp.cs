@@ -31,7 +31,7 @@ namespace OpenFontSharp.Tables.TrueType
         //the rasterizer may apply default rules to decide how to render the glyphs on grayscale devices.
 
         //The 'gasp' table consists of a header followed by groupings of 'gasp' records:
-        GaspRangeRecord[] _rangeRecords;
+        GaspRangeRecord[]? _rangeRecords;
         protected override void ReadContentFrom(BinaryReader reader)
         {
 

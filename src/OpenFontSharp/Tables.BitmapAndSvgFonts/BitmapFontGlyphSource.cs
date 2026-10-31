@@ -5,7 +5,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     class BitmapFontGlyphSource
     {
         readonly CBLC _cblc; //bitmap locator
-        CBDT _cbdt;
+        CBDT? _loadedCbdt;
+        CBDT _cbdt
+        {
+            get => _loadedCbdt ?? throw new NullReferenceException("The bitmap glyph source has no loaded CBDT table.");
+            set => _loadedCbdt = value;
+        }
         public BitmapFontGlyphSource(CBLC cblc) => _cblc = cblc;
 
         /// <summary>
@@ -19,10 +24,10 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         /// </summary>
         public void UnloadCBDT()
         {
-            if (_cbdt != null)
+            if (_loadedCbdt != null)
             {
                 _cbdt.RemoveOldMemoryStreamAndReaders();
-                _cbdt = null;
+                _loadedCbdt = null;
             }
         }
 

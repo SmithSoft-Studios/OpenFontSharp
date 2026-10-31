@@ -61,14 +61,27 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     //uint16 	featureIndexCount 	            Number of FeatureIndex values for this language system-excludes the required feature
     //uint16 	featureIndices[featureIndexCount] 	Array of indices into the FeatureList-in arbitrary order
     //---------------------
+    /// <summary>
+    /// Stores the language-system records associated with one OpenType script.
+    /// </summary>
     public class ScriptTable
     {
+        /// <summary>Gets the four-byte OpenType script tag.</summary>
         public uint scriptTag { get; internal set; }
-        public LangSysTable defaultLang { get; private set; }// be NULL
-        public LangSysTable[] langSysTables { get; private set; }
+        /// <summary>Gets the default language system, or <see langword="null"/> when none is defined.</summary>
+        public LangSysTable? defaultLang { get; private set; }
+        /// <summary>Gets the language-specific systems defined for this script.</summary>
+        public LangSysTable[] langSysTables { get; private set; } = Array.Empty<LangSysTable>();
 
+        /// <summary>Gets the four-byte script tag as a string.</summary>
         public string ScriptTagName => Utils.TagToString(this.scriptTag);
 
+        /// <summary>
+        /// Reads a Script table at the specified stream offset.
+        /// </summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="beginAt">The offset of the Script table.</param>
+        /// <returns>The parsed script table.</returns>
         public static ScriptTable CreateFrom(BinaryReader reader, long beginAt)
         {
             reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -126,23 +139,34 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
 #endif
 
+        /// <summary>
+        /// Stores the feature indices and required feature for one language system.
+        /// </summary>
         public class LangSysTable
         {
             //The Language System table (LangSys) identifies language-system features 
             //used to render the glyphs in a script. (The LookupOrder offset is reserved for future use.)
             //
+            /// <summary>Gets the language-system tag, or zero for the default system.</summary>
             public uint langSysTagIden { get; private set; }
             internal readonly ushort offset;
 
             //
-            public ushort[] featureIndexList { get; private set; }
+            /// <summary>Gets the indices of optional features for this language system.</summary>
+            public ushort[] featureIndexList { get; private set; } = Array.Empty<ushort>();
+            /// <summary>Gets the required feature index, or 0xFFFF when no feature is required.</summary>
             public ushort RequiredFeatureIndex { get; private set; }
 
+            /// <summary>Creates a language-system record with its tag and table offset.</summary>
+            /// <param name="langSysTagIden">The four-byte language-system tag.</param>
+            /// <param name="offset">The offset to the language-system data.</param>
             public LangSysTable(uint langSysTagIden, ushort offset)
             {
                 this.offset = offset;
                 this.langSysTagIden = langSysTagIden;
             }
+            /// <summary>Reads the language-system data at the reader's current position.</summary>
+            /// <param name="reader">The reader for the OpenType data.</param>
             public void ReadFrom(BinaryReader reader)
             {
                 //---------------------
@@ -160,7 +184,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 featureIndexList = Utils.ReadUInt16Array(reader, featureIndexCount);
 
             }
+            /// <summary>Gets whether this language system declares a required feature.</summary>
             public bool HasRequireFeature => RequiredFeatureIndex != 0xFFFF;
+            /// <summary>Gets the language-system tag as a string, or an empty string for the default.</summary>
             public string LangSysTagIdenString => (langSysTagIden == 0) ? "" : Utils.TagToString(langSysTagIden);
 #if DEBUG
             public override string ToString() => LangSysTagIdenString;

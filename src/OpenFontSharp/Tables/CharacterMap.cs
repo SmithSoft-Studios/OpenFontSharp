@@ -201,8 +201,10 @@ namespace OpenFontSharp.Tables
         public ushort CharacterPairToGlyphIndex(int codepoint, ushort defaultGlyphIndex, int nextCodepoint)
         {
             // Only check codepoint if nextCodepoint is a variation selector
+            Dictionary<int, VariationSelector> variationSelectors = _variationSelectors
+                ?? throw new NullReferenceException("The variation selector table has not been loaded.");
 
-            if (_variationSelectors.TryGetValue(nextCodepoint, out VariationSelector sel))
+            if (variationSelectors.TryGetValue(nextCodepoint, out VariationSelector? sel))
             {
 
                 // If the sequence is a non-default UVS, return the mapped glyph
@@ -381,7 +383,7 @@ namespace OpenFontSharp.Tables
             public Dictionary<int, ushort> UVSMappings = new Dictionary<int, ushort>();
         }
 
-        private Dictionary<int, VariationSelector> _variationSelectors;
+        private Dictionary<int, VariationSelector>? _variationSelectors;
     }
 
     /// <summary>

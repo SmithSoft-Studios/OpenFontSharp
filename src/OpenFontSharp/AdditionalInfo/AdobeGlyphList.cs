@@ -54,14 +54,19 @@ namespace OpenFontSharp.AdditionalInfo
         static Dictionary<string, int> s_glyphNameToUnicodeScalarValueDic = new Dictionary<string, int>();
         static Dictionary<int, string> s_unicodeScalarValueToGlyphNameDic = new Dictionary<int, string>();
         static bool s_init = false;
-        public static string GetGlyphNameByUnicodeValue(int unicodeValue)
+        /// <summary>
+        /// Gets the Adobe glyph-list name for a Unicode value.
+        /// </summary>
+        /// <param name="unicodeValue">The Unicode scalar value to look up.</param>
+        /// <returns>The glyph name, or <see langword="null"/> when the value is not in the list.</returns>
+        public static string? GetGlyphNameByUnicodeValue(int unicodeValue)
         {
             if (!s_init)
             {
                 InitData();
             }
             //
-            s_unicodeScalarValueToGlyphNameDic.TryGetValue(unicodeValue, out string glyphName);
+            s_unicodeScalarValueToGlyphNameDic.TryGetValue(unicodeValue, out string? glyphName);
             return glyphName;
         }
         public static int GetUnicodeValueByGlyphName(string glyphName)
@@ -78,7 +83,7 @@ namespace OpenFontSharp.AdditionalInfo
         {
             using (StringReader strReader = new StringReader(glyphListTxt))
             {
-                string line = strReader.ReadLine();
+                string? line = strReader.ReadLine();
                 while (line != null)
                 {
                     //parse each line

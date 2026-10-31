@@ -52,7 +52,7 @@ namespace OpenFontSharp.Tables.CFF
             byte b3 = (byte)((0xff) & Value >> 0);
 
 
-            ///This number is interpreted as a Fixed; that is, a signed number with 16 bits of fraction
+            //This number is interpreted as a Fixed; that is, a signed number with 16 bits of fraction
             float int_part = (short)((b0 << 8) | b1);
             float fraction_part = (short)((b2 << 8) | b3) / (float)(1 << 16);
             return int_part + fraction_part;
@@ -64,7 +64,7 @@ namespace OpenFontSharp.Tables.CFF
         readonly bool _dbug_OnlyOp;
 
         [System.ThreadStatic]
-        static System.Text.StringBuilder s_dbugSb;
+        static System.Text.StringBuilder? s_dbugSb;
 
         public override string ToString()
         {
@@ -445,6 +445,7 @@ namespace OpenFontSharp.Tables.CFF
     }
 
 #if DEBUG
+    /// <summary>Provides diagnostic helpers for inspecting parsed CFF instructions in debug builds.</summary>
     public static class dbugCffInstHelper
     {
         internal static void dbugDumpInstructionListToFile(this IEnumerable<Type2Instruction> insts, string filename)
@@ -517,10 +518,15 @@ namespace OpenFontSharp.Tables.CFF
         bool _foundSomeStem = false;
         bool _enterPathConstructionSeq = false;
 
-        Type2GlyphInstructionList _insts;
+        Type2GlyphInstructionList? _parsedInstructions;
+        Type2GlyphInstructionList _insts
+        {
+            get => _parsedInstructions ?? throw new NullReferenceException("Charstring parsing has not started.");
+            set => _parsedInstructions = value;
+        }
         int _current_integer_count = 0;
         bool _doStemCount = true;
-        Cff1Font _currentCff1Font;
+        Cff1Font? _currentCff1Font;
         int _globalSubrBias;
         int _localSubrBias;
 
@@ -532,11 +538,11 @@ namespace OpenFontSharp.Tables.CFF
 
             if (_currentCff1Font._globalSubrRawBufferList != null)
             {
-                _globalSubrBias = CalculateBias(currentCff1Font._globalSubrRawBufferList.Count);
+                _globalSubrBias = CalculateBias(_currentCff1Font._globalSubrRawBufferList.Count);
             }
             if (_currentCff1Font._localSubrRawBufferList != null)
             {
-                _localSubrBias = CalculateBias(currentCff1Font._localSubrRawBufferList.Count);
+                _localSubrBias = CalculateBias(_currentCff1Font._localSubrRawBufferList.Count);
             }
         }
 
@@ -791,7 +797,8 @@ namespace OpenFontSharp.Tables.CFF
                                 else if (_currentFontDict != null)
                                 {
                                     //use private dict
-                                    ParseType2CharStringBuffer(_currentFontDict.LocalSubr[inst.Value + _localSubrBias]);
+                                    List<byte[]> localSubr = _currentFontDict.LocalSubr ?? throw new NullReferenceException("The CID private dictionary has no local subroutines.");
+                                    ParseType2CharStringBuffer(localSubr[inst.Value + _localSubrBias]);
                                 }
                                 else
                                 {
@@ -815,7 +822,8 @@ namespace OpenFontSharp.Tables.CFF
                                 }
                                 //subr_no must be adjusted with proper bias value 
                                 //load global subr
-                                ParseType2CharStringBuffer(_currentCff1Font._globalSubrRawBufferList[inst.Value + _globalSubrBias]);
+                                List<byte[]> globalSubr = _currentCff1Font._globalSubrRawBufferList ?? throw new NullReferenceException("The CFF font has no global subroutines.");
+                                ParseType2CharStringBuffer(globalSubr[inst.Value + _globalSubrBias]);
                             }
                         }
                         break;
@@ -825,7 +833,7 @@ namespace OpenFontSharp.Tables.CFF
 #if DEBUG
         public ushort dbugCurrentGlyphIndex;
 #endif
-        FontDict _currentFontDict;
+        FontDict? _currentFontDict;
         public void SetCidFontDict(FontDict fontdic)
         {
 #if DEBUG
@@ -838,7 +846,7 @@ namespace OpenFontSharp.Tables.CFF
             _currentFontDict = fontdic;
             if (fontdic.LocalSubr != null)
             {
-                _localSubrBias = CalculateBias(_currentFontDict.LocalSubr.Count);
+                _localSubrBias = CalculateBias(fontdic.LocalSubr.Count);
             }
             else
             {

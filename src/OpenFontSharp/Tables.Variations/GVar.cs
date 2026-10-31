@@ -7,8 +7,13 @@ namespace OpenFontSharp.Tables.Variations
 
     class GlyphVariableData
     {
-        public List<ushort> _sharedPoints;
-        public TupleVariationHeader[] tupleHeaders;
+        public List<ushort>? _sharedPoints;
+        TupleVariationHeader[]? _parsedTupleHeaders;
+        public TupleVariationHeader[] tupleHeaders
+        {
+            get => _parsedTupleHeaders ?? throw new NullReferenceException("The glyph variation tuple headers have not been parsed.");
+            set => _parsedTupleHeaders = value;
+        }
 
     }
     class GVar : TableEntry
@@ -17,9 +22,19 @@ namespace OpenFontSharp.Tables.Variations
         public override string Name => _N;
 
         public ushort axisCount;
-        internal TupleRecord[] _sharedTuples;
+        TupleRecord[]? _parsedSharedTuples;
+        internal TupleRecord[] _sharedTuples
+        {
+            get => _parsedSharedTuples ?? throw new NullReferenceException("The gvar shared tuples have not been parsed.");
+            set => _parsedSharedTuples = value;
+        }
 
-        internal GlyphVariableData[] _glyphVarDataArr; //TODO: lazy load !
+        GlyphVariableData[]? _parsedGlyphVariations;
+        internal GlyphVariableData[] _glyphVarDataArr
+        {
+            get => _parsedGlyphVariations ?? throw new NullReferenceException("The gvar glyph variation data has not been parsed.");
+            set => _parsedGlyphVariations = value;
+        }
 
         public GVar()
         {
@@ -73,7 +88,7 @@ namespace OpenFontSharp.Tables.Variations
             ushort flags = reader.ReadUInt16();
             uint glyphVariationDataArrayOffset = reader.ReadUInt32();
 
-            uint[] glyphVariationDataOffsets = null;
+            uint[] glyphVariationDataOffsets;
             if ((flags & 0x1) == 0)
             {
                 //bit 0 is clear-> use Offset16
@@ -408,5 +423,4 @@ namespace OpenFontSharp.Tables.Variations
         }
     }
 }
-
 

@@ -6,6 +6,7 @@ using System.Diagnostics;
 namespace OpenFontSharp.Tables.CFF
 {
 
+    /// <summary>Evaluates parsed CFF Type 2 charstrings into glyph outline callbacks.</summary>
     public class CffEvaluationEngine
     {
 
@@ -68,10 +69,17 @@ namespace OpenFontSharp.Tables.CFF
             public bool IsContourOpened => _is_contour_opened;
         }
 
+        /// <summary>Creates a CFF charstring evaluation engine.</summary>
         public CffEvaluationEngine()
         {
 
         }
+        /// <summary>Emits the glyph's outline, applying the requested coordinate scale.</summary>
+        /// <param name="tx">The translator receiving contour and curve callbacks.</param>
+        /// <param name="glyphData">The CFF glyph with a parsed Type 2 program.</param>
+        /// <param name="scale">The scale applied to outline coordinates.</param>
+        /// <exception cref="NullReferenceException">The glyph program has not been parsed.</exception>
+        /// <exception cref="OpenFontNotSupportedException">The program uses an unsupported operation.</exception>
         public void Run(IGlyphTranslator tx, Cff1GlyphData glyphData, float scale = 1)
         {
             Run(tx, glyphData.GlyphInstructions, scale);
@@ -286,7 +294,12 @@ namespace OpenFontSharp.Tables.CFF
         double[] _argStack = new double[50];
         int _currentIndex = 0; //current stack index
 
-        IGlyphTranslator _glyphTranslator;
+        IGlyphTranslator? _assignedTranslator;
+        IGlyphTranslator _glyphTranslator
+        {
+            get => _assignedTranslator ?? throw new NullReferenceException("The evaluation stack has no glyph translator.");
+            set => _assignedTranslator = value;
+        }
 #if DEBUG
 
         public int dbugGlyphIndex;
@@ -299,7 +312,7 @@ namespace OpenFontSharp.Tables.CFF
         {
             _currentIndex = 0;
             _currentX = _currentY = 0;
-            _glyphTranslator = null;
+            _assignedTranslator = null;
         }
         public IGlyphTranslator GlyphTranslator
         {

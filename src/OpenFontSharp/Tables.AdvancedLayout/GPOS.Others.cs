@@ -34,7 +34,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         class PairSetTable
         {
-            internal PairSet[] _pairSets;
+            internal PairSet[] _pairSets = Array.Empty<PairSet>();
             public void ReadFrom(BinaryReader reader, ushort v1format, ushort v2format)
             {
                 ushort rowCount = reader.ReadUInt16();
@@ -45,8 +45,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     //ValueRecord 	Value1 	        Positioning data for the first glyph in the pair
                     //ValueRecord 	Value2 	        Positioning data for the second glyph in the pair
                     ushort secondGlyph = reader.ReadUInt16();
-                    ValueRecord v1 = ValueRecord.CreateFrom(reader, v1format);
-                    ValueRecord v2 = ValueRecord.CreateFrom(reader, v2format);
+                    ValueRecord? v1 = ValueRecord.CreateFrom(reader, v1format);
+                    ValueRecord? v2 = ValueRecord.CreateFrom(reader, v2format);
                     //
                     _pairSets[i] = new PairSet(secondGlyph, v1, v2);
                 }
@@ -74,9 +74,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         readonly struct PairSet
         {
             public readonly ushort secondGlyph;//GlyphID of second glyph in the pair-first glyph is listed in the Coverage table
-            public readonly ValueRecord value1;//Positioning data for the first glyph in the pair
-            public readonly ValueRecord value2;//Positioning data for the second glyph in the pair   
-            public PairSet(ushort secondGlyph, ValueRecord v1, ValueRecord v2)
+            public readonly ValueRecord? value1;//Positioning data for the first glyph in the pair
+            public readonly ValueRecord? value2;//Positioning data for the second glyph in the pair
+            public PairSet(ushort secondGlyph, ValueRecord? v1, ValueRecord? v2)
             {
                 this.secondGlyph = secondGlyph;
                 this.value1 = v1;
@@ -176,7 +176,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             const int FMT_XAdvDevice = 1 << 6;
             const int FMT_YAdvDevice = 1 << 7;
 
-            public static ValueRecord CreateFrom(BinaryReader reader, ushort valueFormat)
+            public static ValueRecord? CreateFrom(BinaryReader reader, ushort valueFormat)
             {
                 if (valueFormat == 0)
                     return null;//empty
@@ -390,8 +390,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //-------------------
             //uint16 	Class 	                Class defined for this mark
             //Offset16 	MarkAnchor 	            Offset to Anchor table-from beginning of MarkArray table
-            internal MarkRecord[] _records;
-            internal AnchorPoint[] _anchorPoints;
+            internal MarkRecord[] _records = Array.Empty<MarkRecord>();
+            internal AnchorPoint[] _anchorPoints = Array.Empty<AnchorPoint>();
             public AnchorPoint GetAnchorPoint(int index)
             {
                 return _anchorPoints[index];
@@ -537,7 +537,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             // Note: Anchor tables are not tagged with class value identifiers.
             //Instead, the index value of an Anchor table in the array defines the class value represented by the Anchor table.
 
-            internal BaseRecord[] _records;
+            internal BaseRecord[] _records = Array.Empty<BaseRecord>();
 
             public BaseRecord GetBaseRecords(int index)
             {
@@ -649,7 +649,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         //Offset16 	LigatureAnchor[ClassCount] 	Array of offsets (one per class) to Anchor tables-from beginning of LigatureAttach table-ordered by class-NULL if a component does not have an attachment for a class-zero-based array
         class LigatureArrayTable
         {
-            LigatureAttachTable[] _ligatures;
+            LigatureAttachTable[] _ligatures = Array.Empty<LigatureAttachTable>();
             public void ReadFrom(BinaryReader reader, ushort classCount)
             {
                 long startPos = reader.BaseStream.Position;
@@ -674,7 +674,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //uint16 	ComponentCount 	                    Number of ComponentRecords in this ligature
             //struct 	ComponentRecord[ComponentCount] 	Array of Component records-ordered in writing direction
             //-------------------------------
-            ComponentRecord[] _records;
+            ComponentRecord[] _records = Array.Empty<ComponentRecord>();
             public static LigatureAttachTable ReadFrom(BinaryReader reader, ushort classCount)
             {
                 LigatureAttachTable table = new LigatureAttachTable();
@@ -744,7 +744,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             //Example 10 at the end of this chapter demonstrates glyph kerning in context with a ContextPosFormat1 subtable.
 
-            PosRuleTable[] _posRuleTables;
+            PosRuleTable[] _posRuleTables = Array.Empty<PosRuleTable>();
             void ReadFrom(BinaryReader reader)
             {
                 long tableStartAt = reader.BaseStream.Position;
@@ -781,8 +781,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //uint16 	PosCount 	Number of PosLookupRecords
             //uint16 	Input[GlyphCount - 1]  Array of input GlyphIDs-starting with the second glyph***
             //struct 	PosLookupRecord[PosCount] 	Array of positioning lookups-in design order
-            PosLookupRecord[] _posLookupRecords;
-            ushort[] _inputGlyphIds;
+            PosLookupRecord[] _posLookupRecords = Array.Empty<PosLookupRecord>();
+            ushort[] _inputGlyphIds = Array.Empty<ushort>();
             public void ReadFrom(BinaryReader reader)
             {
                 ushort glyphCount = reader.ReadUInt16();
@@ -835,7 +835,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //struct 	PosLookupRecord[PosCount] 	Array of positioning lookups-in design order
             //----------------------
 
-            public PosClassRule[] PosClassRules;
+            public PosClassRule[] PosClassRules = Array.Empty<PosClassRule>();
 
             void ReadFrom(BinaryReader reader)
             {
@@ -863,8 +863,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         class PosClassRule
         {
-            public PosLookupRecord[] PosLookupRecords;
-            public ushort[] InputGlyphIds;
+            public PosLookupRecord[] PosLookupRecords = Array.Empty<PosLookupRecord>();
+            public ushort[] InputGlyphIds = Array.Empty<ushort>();
 
             public static PosClassRule CreateFrom(BinaryReader reader, long beginAt)
             {

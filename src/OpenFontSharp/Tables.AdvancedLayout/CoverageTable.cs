@@ -4,15 +4,34 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 {
     //https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2
 
+    /// <summary>
+    /// Maps glyph identifiers to their zero-based coverage indices.
+    /// </summary>
     public abstract class CoverageTable
     {
+        /// <summary>
+        /// Finds the coverage index of a glyph.
+        /// </summary>
+        /// <param name="glyphIndex">The glyph identifier to find.</param>
+        /// <returns>The zero-based coverage index, or -1 when the glyph is not covered.</returns>
         public abstract int FindPosition(ushort glyphIndex);
+
+        /// <summary>
+        /// Enumerates the glyph identifiers represented by this coverage table.
+        /// </summary>
+        /// <returns>Covered glyph identifiers in table order.</returns>
         public abstract IEnumerable<ushort> GetExpandedValueIter();
 
 #if DEBUG
 
 #endif
-
+        /// <summary>
+        /// Reads a coverage table in either supported OpenType format.
+        /// </summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="beginAt">The offset of the coverage table.</param>
+        /// <returns>The parsed coverage table.</returns>
+        /// <exception cref="OpenFontNotSupportedException">The table uses an unsupported format.</exception>
         public static CoverageTable CreateFrom(BinaryReader reader, long beginAt)
         {
             reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -24,7 +43,13 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 case 2: return CoverageFmt2.CreateFrom(reader);
             }
         }
-
+        /// <summary>
+        /// Reads coverage tables at offsets relative to a common base position.
+        /// </summary>
+        /// <param name="initPos">The base offset for each table.</param>
+        /// <param name="offsets">Offsets of the coverage tables.</param>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <returns>The parsed coverage tables in offset order.</returns>
         public static CoverageTable[] CreateMultipleCoverageTables(long initPos, ushort[] offsets, BinaryReader reader)
         {
             CoverageTable[] results = new CoverageTable[offsets.Length];
@@ -36,8 +61,16 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
     }
 
+    /// <summary>
+    /// Coverage format 1, which stores an ordered list of glyph identifiers.
+    /// </summary>
     public class CoverageFmt1 : CoverageTable
     {
+        /// <summary>
+        /// Reads a format 1 coverage table from the current stream position.
+        /// </summary>
+        /// <param name="reader">The reader positioned after the format field.</param>
+        /// <returns>The parsed format 1 coverage table.</returns>
         public static CoverageFmt1 CreateFrom(BinaryReader reader)
         {
             // CoverageFormat1 table: Individual glyph indices
@@ -51,6 +84,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             return new CoverageFmt1() { _orderedGlyphIdList = glyphs };
         }
 
+        /// <inheritdoc />
         public override int FindPosition(ushort glyphIndex)
         {
             // "The glyph indices must be in numerical order for binary searching of the list"
@@ -58,6 +92,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             int n = Array.BinarySearch(_orderedGlyphIdList, glyphIndex);
             return n < 0 ? -1 : n;
         }
+        /// <inheritdoc />
         public override IEnumerable<ushort> GetExpandedValueIter() { return _orderedGlyphIdList; }
 
 #if DEBUG
@@ -73,11 +108,15 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
 #endif
 
-        internal ushort[] _orderedGlyphIdList;
+        internal ushort[] _orderedGlyphIdList = Array.Empty<ushort>();
     }
 
+    /// <summary>
+    /// Coverage format 2, which stores ordered glyph ranges and their coverage indices.
+    /// </summary>
     public class CoverageFmt2 : CoverageTable
     {
+        /// <inheritdoc />
         public override int FindPosition(ushort glyphIndex)
         {
             // Ranges must be in glyph ID order, and they must be distinct, with no overlapping.
@@ -93,6 +132,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             return _coverageIndices[n] + glyphIndex - _startIndices[n];
         }
 
+        /// <inheritdoc />
         public override IEnumerable<ushort> GetExpandedValueIter()
         {
             for (int i = 0; i < RangeCount; ++i)
@@ -103,6 +143,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 }
             }
         }
+        /// <summary>
+        /// Reads a format 2 coverage table from the current stream position.
+        /// </summary>
+        /// <param name="reader">The reader positioned after the format field.</param>
+        /// <returns>The parsed format 2 coverage table.</returns>
         public static CoverageFmt2 CreateFrom(BinaryReader reader)
         {
             // CoverageFormat2 table: Range of glyphs
@@ -149,9 +194,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
 #endif
 
-        internal ushort[] _startIndices;
-        internal ushort[] _endIndices;
-        internal ushort[] _coverageIndices;
+        internal ushort[] _startIndices = Array.Empty<ushort>();
+        internal ushort[] _endIndices = Array.Empty<ushort>();
+        internal ushort[] _coverageIndices = Array.Empty<ushort>();
 
         private int RangeCount => _startIndices.Length;
     }

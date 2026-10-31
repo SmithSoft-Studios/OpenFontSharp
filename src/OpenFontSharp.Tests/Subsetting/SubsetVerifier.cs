@@ -114,7 +114,11 @@ internal static class SubsetVerifier
         {
             var outline = new Outline();
             if (glyph.IsCffGlyph)
-                new CffEvaluationEngine().Run(outline, glyph.GetCff1GlyphData());
+            {
+                var data = glyph.GetCff1GlyphData();
+                Assert.NotNull(data);
+                new CffEvaluationEngine().Run(outline, data);
+            }
             else
                 outline.Read(glyph.GlyphPoints, glyph.EndPoints);
             return outline;

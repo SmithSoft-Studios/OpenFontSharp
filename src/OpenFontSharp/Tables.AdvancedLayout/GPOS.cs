@@ -4,9 +4,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 {
     //https://docs.microsoft.com/en-us/typography/opentype/spec/gpos
 
+    /// <summary>
+    /// Represents OpenType glyph-positioning lookups and their script and feature data.
+    /// </summary>
     public partial class GPOS : GlyphShapingTableEntry
     {
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "GPOS";
+        /// <inheritdoc />
         public override string Name => _N;
 
         /// <summary>
@@ -19,6 +24,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 #if DEBUG
         public GPOS() { }
 #endif
+        /// <inheritdoc />
         protected override void ReadLookupTable(BinaryReader reader, long lookupTablePos,
                                                 ushort lookupType, ushort lookupFlags,
                                                 ushort[] subTableOffsets, ushort markFilteringSet)
@@ -50,6 +56,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             LookupList.Add(lookupTable);
         }
 
+        /// <inheritdoc />
         protected override void ReadFeatureVariations(BinaryReader reader, long featureVariationsBeginAt)
         {
             Utils.WarnUnimplemented("GPOS feature variations");
@@ -57,11 +64,30 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         readonly List<LookupTable> _lookupList = new List<LookupTable>();
 
+        /// <summary>Gets the lookup tables in their zero-based lookup-list order.</summary>
         public IList<LookupTable> LookupList => _lookupList;
 
+        /// <summary>Base class for positioning lookup subtables.</summary>
         public abstract class LookupSubTable
         {
-            public GPOS OwnerGPos;
+            /// <summary>Gets or sets the GPOS table that owns this subtable.</summary>
+            public GPOS? OwnerGPos;
+            /// <summary>Gets the owning table after the subtable has been attached to it.</summary>
+            /// <exception cref="InvalidOperationException">The subtable has not been attached to a GPOS table.</exception>
+            private protected GPOS Owner => OwnerGPos
+                ?? throw new InvalidOperationException("The GPOS subtable has no owning table.");
+
+            /// <summary>Returns parser-populated state or reports that parsing is incomplete.</summary>
+            /// <typeparam name="T">The reference type of the parsed state.</typeparam>
+            /// <param name="value">The value to validate.</param>
+            /// <returns>The non-null parsed value.</returns>
+            /// <exception cref="InvalidOperationException">The parser has not populated the value.</exception>
+            private protected static T RequireParsed<T>(T? value) where T : class
+                => value ?? throw new InvalidOperationException("The GPOS subtable has not been parsed.");
+            /// <summary>Applies this positioning subtable to a glyph sequence.</summary>
+            /// <param name="inputGlyphs">The glyph positions to update.</param>
+            /// <param name="startAt">The first glyph position to process.</param>
+            /// <param name="len">The number of glyph positions to process.</param>
             public abstract void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len);
         }
 
@@ -72,18 +98,20 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         {
             readonly string _msg;
 
+            /// <summary>Creates a placeholder for an unsupported positioning subtable.</summary>
+            /// <param name="message">A description of the unsupported subtable.</param>
             public UnImplementedLookupSubTable(string message)
             {
                 _msg = message;
                 Utils.WarnUnimplemented(message);
             }
+            /// <inheritdoc />
             public override string ToString() => _msg;
+            /// <inheritdoc />
             public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len) { }
         }
 
-        /// <summary>
-        /// sub table of a lookup list
-        /// </summary>
+        /// <summary>Groups subtables sharing one GPOS lookup type and flags.</summary>
         public partial class LookupTable
         {
 #if DEBUG
@@ -91,15 +119,25 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 #endif
 
 
+            /// <summary>Gets the flags controlling how this lookup is applied.</summary>
             public readonly ushort lookupFlags;
+            /// <summary>Gets the index of the mark filtering set for this lookup.</summary>
             public readonly ushort markFilteringSet;
             //--------------------------
-            LookupSubTable[] _subTables;
+            LookupSubTable[] _subTables = Array.Empty<LookupSubTable>();
+
+            /// <summary>Creates a lookup with its flags and mark filtering set.</summary>
+            /// <param name="lookupFlags">Flags controlling lookup application.</param>
+            /// <param name="markFilteringSet">The mark filtering set index.</param>
             public LookupTable(ushort lookupFlags, ushort markFilteringSet)
             {
                 this.lookupFlags = lookupFlags;
                 this.markFilteringSet = markFilteringSet;
             }
+            /// <summary>Applies this lookup to a range of glyph positions.</summary>
+            /// <param name="inputGlyphs">The glyph positions to update.</param>
+            /// <param name="startAt">The first glyph position to process.</param>
+            /// <param name="len">The number of positions to process.</param>
             public void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
             {
                 foreach (LookupSubTable subTable in SubTables)
@@ -109,12 +147,18 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     len = inputGlyphs.Count;
                 }
             }
+            /// <summary>Gets the subtables that implement this lookup.</summary>
             public LookupSubTable[] SubTables
             {
                 get => _subTables;
                 internal set => _subTables = value;
             }
 
+            /// <summary>Reads a GPOS lookup subtable of the specified type.</summary>
+            /// <param name="lookupType">The OpenType positioning lookup type.</param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The subtable offset.</param>
+            /// <returns>The parsed subtable or a placeholder for an unsupported type.</returns>
             public static LookupSubTable ReadSubTable(int lookupType, BinaryReader reader, long subTableStartAt)
             {
                 switch (lookupType)
@@ -147,14 +191,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableType1 : LookupSubTable
             {
-                public LkSubTableType1(CoverageTable coverage, ValueRecord singleValue)
+                public LkSubTableType1(CoverageTable coverage, ValueRecord? singleValue)
                 {
                     this.Format = 1;
                     _coverageTable = coverage;
-                    _valueRecords = new ValueRecord[] { singleValue };
+                    _valueRecords = new ValueRecord?[] { singleValue };
                 }
 
-                public LkSubTableType1(CoverageTable coverage, ValueRecord[] valueRecords)
+                public LkSubTableType1(CoverageTable coverage, ValueRecord?[] valueRecords)
                 {
                     this.Format = 2;
                     _coverageTable = coverage;
@@ -163,7 +207,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
                 public int Format { get; }
                 readonly CoverageTable _coverageTable;
-                readonly ValueRecord[] _valueRecords;
+                readonly ValueRecord?[] _valueRecords;
 
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
@@ -174,9 +218,12 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                         int cov_index = _coverageTable.FindPosition(glyph_index);
                         if (cov_index > -1)
                         {
-                            var vr = _valueRecords[Format == 1 ? 0 : cov_index];
-                            inputGlyphs.AppendGlyphOffset(i, vr.XPlacement, vr.YPlacement);
-                            inputGlyphs.AppendGlyphAdvance(i, vr.XAdvance, 0);
+                            ValueRecord? vr = _valueRecords[Format == 1 ? 0 : cov_index];
+                            if (vr != null)
+                            {
+                                inputGlyphs.AppendGlyphOffset(i, vr.XPlacement, vr.YPlacement);
+                                inputGlyphs.AppendGlyphAdvance(i, vr.XAdvance, 0);
+                            }
                         }
                     }
                 }
@@ -185,7 +232,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 1: Single Adjustment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType1(BinaryReader reader, long subTableStartAt)
             {
                 // Single Adjustment Positioning: Format 1
@@ -213,14 +261,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     default: throw new OpenFontNotSupportedException();
                     case 1:
                         {
-                            ValueRecord valueRecord = ValueRecord.CreateFrom(reader, valueFormat);
+                            ValueRecord? valueRecord = ValueRecord.CreateFrom(reader, valueFormat);
                             CoverageTable coverageTable = CoverageTable.CreateFrom(reader, subTableStartAt + coverage);
                             return new LkSubTableType1(coverageTable, valueRecord);
                         }
                     case 2:
                         {
                             ushort valueCount = reader.ReadUInt16();
-                            var valueRecords = new ValueRecord[valueCount];
+                            var valueRecords = new ValueRecord?[valueCount];
                             for (int n = 0; n < valueCount; ++n)
                             {
                                 valueRecords[n] = ValueRecord.CreateFrom(reader, valueFormat);
@@ -241,7 +289,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 {
                     _pairSetTables = pairSetTables;
                 }
-                public CoverageTable CoverageTable { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     //find marker
@@ -260,8 +309,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
                             if (pairSet.FindPairSet(second_glyph_index, out PairSet foundPairSet))
                             {
-                                ValueRecord v1 = foundPairSet.value1;
-                                ValueRecord v2 = foundPairSet.value2;
+                                ValueRecord? v1 = foundPairSet.value1;
+                                ValueRecord? v2 = foundPairSet.value2;
                                 //TODO: recheck for vertical writing ... (YAdvance)
                                 if (v1 != null)
                                 {
@@ -296,7 +345,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     _class1Def = class1Def;
                     _class2Def = class2Def;
                 }
-                public CoverageTable CoverageTable { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
 
@@ -325,8 +375,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                                     //TODO: recheck for vertical writing ... (YAdvance)
                                     Lk2Class2Record pair = class1Rec.class2Records[class2_no];
 
-                                    ValueRecord v1 = pair.value1;
-                                    ValueRecord v2 = pair.value2;
+                                    ValueRecord? v1 = pair.value1;
+                                    ValueRecord? v2 = pair.value2;
 
                                     if (v1 != null)
                                     {
@@ -402,10 +452,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //ValueRecord 	Value1 	Positioning for first glyph-empty if ValueFormat1 = 0
                 //ValueRecord 	Value2 	Positioning for second glyph-empty if ValueFormat2 = 0
                 //--------------------------------
-                public readonly ValueRecord value1;//null= empty
-                public readonly ValueRecord value2;//null= empty
-
-                public Lk2Class2Record(ValueRecord value1, ValueRecord value2)
+                public readonly ValueRecord? value1;//null= empty
+                public readonly ValueRecord? value2;//null= empty
+                public Lk2Class2Record(ValueRecord? value1, ValueRecord? value2)
                 {
                     this.value1 = value1;
                     this.value2 = value2;
@@ -422,7 +471,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             ///  Lookup Type 2: Pair Adjustment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType2(BinaryReader reader, long subTableStartAt)
             {
                 //A pair adjustment positioning subtable(PairPos) is used to adjust the positions of two glyphs
@@ -587,7 +637,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 3: Cursive Attachment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType3(BinaryReader reader, long subTableStartAt)
             {
                 // TODO: implement this
@@ -600,17 +651,21 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// </summary>
             class LkSubTableType4 : LookupSubTable
             {
-                public CoverageTable MarkCoverageTable { get; set; }
-                public CoverageTable BaseCoverageTable { get; set; }
-                public BaseArrayTable BaseArrayTable { get; set; }
-                public MarkArrayTable MarkArrayTable { get; set; }
+                CoverageTable? _markCoverageTable;
+                CoverageTable? _baseCoverageTable;
+                BaseArrayTable? _baseArrayTable;
+                MarkArrayTable? _markArrayTable;
+                public CoverageTable MarkCoverageTable { get => RequireParsed(_markCoverageTable); set => _markCoverageTable = value; }
+                public CoverageTable BaseCoverageTable { get => RequireParsed(_baseCoverageTable); set => _baseCoverageTable = value; }
+                public BaseArrayTable BaseArrayTable { get => RequireParsed(_baseArrayTable); set => _baseArrayTable = value; }
+                public MarkArrayTable MarkArrayTable { get => RequireParsed(_markArrayTable); set => _markArrayTable = value; }
 
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     int lim = Math.Min(startAt + len, inputGlyphs.Count);
 
                     // Find the mark glyph, starting at 1
-                    bool longLookBack = this.OwnerGPos.EnableLongLookBack;
+                    bool longLookBack = this.Owner.EnableLongLookBack;
                     for (int i = Math.Max(startAt, 1); i < lim; ++i)
                     {
                         int markFound = MarkCoverageTable.FindPosition(inputGlyphs.GetGlyph(i, out short glyph_advW));
@@ -673,7 +728,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 4: MarkToBase Attachment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType4(BinaryReader reader, long subTableStartAt)
             {
                 //The MarkToBase attachment (MarkBasePos) subtable is used to position combining mark glyphs with respect to base glyphs. 
@@ -759,10 +815,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //Lookup Type 5: MarkToLigature Attachment Positioning Subtable
             class LkSubTableType5 : LookupSubTable
             {
-                public CoverageTable MarkCoverage { get; set; }
-                public CoverageTable LigatureCoverage { get; set; }
-                public MarkArrayTable MarkArrayTable { get; set; }
-                public LigatureArrayTable LigatureArrayTable { get; set; }
+                CoverageTable? _markCoverage;
+                CoverageTable? _ligatureCoverage;
+                MarkArrayTable? _markArrayTable;
+                LigatureArrayTable? _ligatureArrayTable;
+                public CoverageTable MarkCoverage { get => RequireParsed(_markCoverage); set => _markCoverage = value; }
+                public CoverageTable LigatureCoverage { get => RequireParsed(_ligatureCoverage); set => _ligatureCoverage = value; }
+                public MarkArrayTable MarkArrayTable { get => RequireParsed(_markArrayTable); set => _markArrayTable = value; }
+                public LigatureArrayTable LigatureArrayTable { get => RequireParsed(_ligatureArrayTable); set => _ligatureArrayTable = value; }
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     Utils.WarnUnimplemented("GPOS Lookup Sub Table Type 5");
@@ -772,7 +832,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 5: MarkToLigature Attachment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType5(BinaryReader reader, long subTableStartAt)
             {
                 //uint16 	PosFormat 	        Format identifier-format = 1
@@ -816,10 +877,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// </summary>
             class LkSubTableType6 : LookupSubTable
             {
-                public CoverageTable MarkCoverage1 { get; set; }
-                public CoverageTable MarkCoverage2 { get; set; }
-                public MarkArrayTable Mark1ArrayTable { get; set; }
-                public Mark2ArrayTable Mark2ArrayTable { get; set; } // Mark2 attachment points used to attach Mark1 glyphs to a specific Mark2 glyph. 
+                CoverageTable? _markCoverage1;
+                CoverageTable? _markCoverage2;
+                MarkArrayTable? _mark1ArrayTable;
+                Mark2ArrayTable? _mark2ArrayTable;
+                public CoverageTable MarkCoverage1 { get => RequireParsed(_markCoverage1); set => _markCoverage1 = value; }
+                public CoverageTable MarkCoverage2 { get => RequireParsed(_markCoverage2); set => _markCoverage2 = value; }
+                public MarkArrayTable Mark1ArrayTable { get => RequireParsed(_mark1ArrayTable); set => _mark1ArrayTable = value; }
+                public Mark2ArrayTable Mark2ArrayTable { get => RequireParsed(_mark2ArrayTable); set => _mark2ArrayTable = value; } // Mark2 attachment points used to attach Mark1 glyphs to a specific Mark2 glyph.
 
 
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
@@ -831,7 +896,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     //(skipping glyphs according to LookupFlags)
 
                     //@prepare: we must found mark2 glyph before mark1
-                    bool longLookBack = this.OwnerGPos.EnableLongLookBack;
+                    bool longLookBack = this.Owner.EnableLongLookBack;
 #if DEBUG
                     if (len == 3 || len == 4)
                     {
@@ -889,7 +954,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 6: MarkToMark Attachment Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType6(BinaryReader reader, long subTableStartAt)
             {
                 // uint16     PosFormat      Format identifier-format = 1
@@ -924,7 +990,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// Lookup Type 7: Contextual Positioning Subtables
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType7(BinaryReader reader, long subTableStartAt)
             {
                 reader.BaseStream.Seek(subTableStartAt, SeekOrigin.Begin);
@@ -1007,8 +1074,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableType7Fmt1 : LookupSubTable
             {
-                public CoverageTable CoverageTable { get; set; }
-                public PosRuleSetTable[] PosRuleSetTables { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public PosRuleSetTable[] PosRuleSetTables { get; set; } = Array.Empty<PosRuleSetTable>();
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     Utils.WarnUnimplemented("GPOS Lookup Sub Table Type 7 Format 1");
@@ -1017,9 +1085,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableType7Fmt2 : LookupSubTable
             {
-                public ClassDefTable ClassDef { get; set; }
-                public CoverageTable CoverageTable { get; set; }
-                public PosClassSetTable[] PosClassSetTables { get; set; }
+                ClassDefTable? _classDef;
+                CoverageTable? _coverageTable;
+                public ClassDefTable ClassDef { get => RequireParsed(_classDef); set => _classDef = value; }
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public PosClassSetTable[] PosClassSetTables { get; set; } = Array.Empty<PosClassSetTable>();
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     int lim = Math.Min(startAt + len, inputGlyphs.Count);
@@ -1056,7 +1126,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                             {
                                 foreach (PosLookupRecord plr in rule.PosLookupRecords)
                                 {
-                                    LookupTable lookup = OwnerGPos.LookupList[plr.lookupListIndex];
+                                    LookupTable lookup = Owner.LookupList[plr.lookupListIndex];
                                     lookup.DoGlyphPosition(inputGlyphs, i + plr.seqIndex, glyphIds.Length - plr.seqIndex);
                                 }
                                 break;
@@ -1067,8 +1137,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             }
             class LkSubTableType7Fmt3 : LookupSubTable
             {
-                public CoverageTable[] CoverageTables { get; set; }
-                public PosLookupRecord[] PosLookupRecords { get; set; }
+                public CoverageTable[] CoverageTables { get; set; } = Array.Empty<CoverageTable>();
+                public PosLookupRecord[] PosLookupRecords { get; set; } = Array.Empty<PosLookupRecord>();
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     Utils.WarnUnimplemented("GPOS Lookup Sub Table Type 7 Format 3");
@@ -1077,8 +1147,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //----------------------------------------------------------------
             class LkSubTableType8Fmt1 : LookupSubTable
             {
-                public CoverageTable CoverageTable { get; set; }
-                public PosRuleSetTable[] PosRuleSetTables { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public PosRuleSetTable[] PosRuleSetTables { get; set; } = Array.Empty<PosRuleSetTable>();
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
                     Utils.WarnUnimplemented("GPOS Lookup Sub Table Type 8 Format 1");
@@ -1091,12 +1162,15 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 {
 
                 }
-                public CoverageTable CoverageTable { get; set; }
-                public PosClassSetTable[] PosClassSetTables { get; set; }
-
-                public ClassDefTable BackTrackClassDef { get; set; }
-                public ClassDefTable InputClassDef { get; set; }
-                public ClassDefTable LookaheadClassDef { get; set; }
+                CoverageTable? _coverageTable;
+                ClassDefTable? _backTrackClassDef;
+                ClassDefTable? _inputClassDef;
+                ClassDefTable? _lookaheadClassDef;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public PosClassSetTable[] PosClassSetTables { get; set; } = Array.Empty<PosClassSetTable>();
+                public ClassDefTable BackTrackClassDef { get => RequireParsed(_backTrackClassDef); set => _backTrackClassDef = value; }
+                public ClassDefTable InputClassDef { get => RequireParsed(_inputClassDef); set => _inputClassDef = value; }
+                public ClassDefTable LookaheadClassDef { get => RequireParsed(_lookaheadClassDef); set => _lookaheadClassDef = value; }
 
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
@@ -1112,10 +1186,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableType8Fmt3 : LookupSubTable
             {
-                public CoverageTable[] BacktrackCoverages { get; set; }
-                public CoverageTable[] InputGlyphCoverages { get; set; }
-                public CoverageTable[] LookaheadCoverages { get; set; }
-                public PosLookupRecord[] PosLookupRecords { get; set; }
+                public CoverageTable[] BacktrackCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public CoverageTable[] InputGlyphCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public CoverageTable[] LookaheadCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public PosLookupRecord[] PosLookupRecords { get; set; } = Array.Empty<PosLookupRecord>();
 
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
@@ -1156,7 +1230,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
                     foreach (var plr in PosLookupRecords)
                     {
-                        var lookup = OwnerGPos.LookupList[plr.lookupListIndex];
+                        var lookup = Owner.LookupList[plr.lookupListIndex];
                         lookup.DoGlyphPosition(inputGlyphs, pos + plr.seqIndex, InputGlyphCoverages.Length - plr.seqIndex);
                     }
                 }
@@ -1165,7 +1239,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 8: Chaining Contextual Positioning Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType8(BinaryReader reader, long subTableStartAt)
             {
                 reader.BaseStream.Seek(subTableStartAt, SeekOrigin.Begin);
@@ -1268,7 +1343,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 9: Extension Positioning
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType9(BinaryReader reader, long subTableStartAt)
             {
                 reader.BaseStream.Seek(subTableStartAt, SeekOrigin.Begin);
@@ -1286,4 +1362,3 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
     }
 }
-

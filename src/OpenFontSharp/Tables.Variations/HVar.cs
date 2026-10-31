@@ -14,10 +14,15 @@ namespace OpenFontSharp.Tables.Variations
         public override string Name => _N;
 
 
-        internal ItemVariationStoreTable _itemVartionStore;
-        internal DeltaSetIndexMap[] _advanceWidthMapping;
-        internal DeltaSetIndexMap[] _lsbMapping;
-        internal DeltaSetIndexMap[] _rsbMapping;
+        ItemVariationStoreTable? _loadedStore;
+        internal ItemVariationStoreTable _itemVartionStore
+        {
+            get => _loadedStore ?? throw new NullReferenceException("The HVAR item variation store has not been parsed.");
+            set => _loadedStore = value;
+        }
+        internal DeltaSetIndexMap[]? _advanceWidthMapping;
+        internal DeltaSetIndexMap[]? _lsbMapping;
+        internal DeltaSetIndexMap[]? _rsbMapping;
 
         public HVar()
         {

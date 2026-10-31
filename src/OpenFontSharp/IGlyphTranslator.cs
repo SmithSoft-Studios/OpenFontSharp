@@ -29,6 +29,7 @@ namespace OpenFontSharp
     //please note that TrueType font
     //compose of Quadractic Bezier Curve ***
     //--------------------- 
+    /// <summary>Receives scaled outline commands for drawing or converting a glyph.</summary>
     public interface IGlyphTranslator
     {
         /// <summary>
@@ -77,10 +78,17 @@ namespace OpenFontSharp
         void CloseContour();
     }
 
+    /// <summary>Translates TrueType and CFF outlines into drawing callbacks.</summary>
     public static class IGlyphReaderExtensions
     {
         //for TrueType Font
-        public static void Read(this IGlyphTranslator tx, GlyphPointF[] glyphPoints, ushort[] contourEndPoints, float scale = 1)
+        /// <summary>Emits TrueType contour commands; null outline arrays produce no callbacks.</summary>
+        /// <param name="tx">The outline command receiver.</param>
+        /// <param name="glyphPoints">TrueType points, or null for an unavailable outline.</param>
+        /// <param name="contourEndPoints">Contour end-point indices, or null for an unavailable outline.</param>
+        /// <param name="scale">The coordinate scale factor.</param>
+        /// <exception cref="OpenFontNotSupportedException">The contour contains an unsupported control-point sequence.</exception>
+        public static void Read(this IGlyphTranslator tx, GlyphPointF[]? glyphPoints, ushort[]? contourEndPoints, float scale = 1)
         {
             if (glyphPoints == null || contourEndPoints == null)
             {
@@ -417,6 +425,11 @@ namespace OpenFontSharp
         }
         //-----------
         //for CFF1
+        /// <summary>Evaluates a CFF glyph's Type 2 instructions and emits outline commands.</summary>
+        /// <param name="tx">The outline command receiver.</param>
+        /// <param name="cff1Font">The owning CFF font; retained for compatibility.</param>
+        /// <param name="glyphData">The loaded CFF glyph data.</param>
+        /// <param name="scale">The coordinate scale factor.</param>
         public static void Read(this IGlyphTranslator tx, Cff1Font cff1Font, Cff1GlyphData glyphData, float scale = 1)
         {
             CffEvaluationEngine evalEngine = new CffEvaluationEngine();

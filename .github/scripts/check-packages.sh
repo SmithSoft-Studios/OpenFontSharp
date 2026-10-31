@@ -38,6 +38,18 @@ dotnet add package OpenFontSharp --version "$version" > /dev/null
 cat > Program.cs <<'CS'
 using OpenFontSharp;
 using OpenFontSharp.Subsetting;
+using System.IO.Compression;
+using System.Xml.Linq;
+
+using (var package = ZipFile.OpenRead(args[1]))
+{
+    var entry = package.GetEntry("lib/net10.0/OpenFontSharp.xml")
+        ?? throw new Exception("Package is missing XML API documentation");
+    using var xml = entry.Open();
+    var document = XDocument.Load(xml);
+    if (!document.Descendants("member").Any(m => (string?)m.Attribute("name") == "T:OpenFontSharp.OpenFontReader"))
+        throw new Exception("Package XML does not document OpenFontReader");
+}
 
 var bytes = File.ReadAllBytes(args[0]);
 Typeface typeface;
@@ -51,8 +63,8 @@ using var back = new MemoryStream(result.FontData);
 var subset = new OpenFontReader().Read(back) ?? throw new Exception("Subset font does not load");
 if (subset.GlyphCount != result.RetainedGlyphCount) throw new Exception("Subset glyph count mismatch");
 CS
-dotnet run --configuration Release -- "$(winpath "$font")" > /dev/null
-echo "   OpenFontSharp $version: installs, reads a font, subsets it and reads the subset back"
+dotnet run --configuration Release -- "$(winpath "$font")" "$(winpath "$nupkg")" > /dev/null
+echo "   OpenFontSharp $version: includes XML API docs, installs, reads a font, subsets it and reads the subset back"
 
 rm -rf "$work"
 echo "Package in $out"

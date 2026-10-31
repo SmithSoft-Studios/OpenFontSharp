@@ -12,8 +12,13 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         //which allows some or all glyphs in the font to be defined with color, gradients, or animation.
 
 
-        Dictionary<ushort, int> _dicSvgEntries;
-        SvgDocumentEntry[] _entries; //TODO: review again
+        Dictionary<ushort, int>? _dicSvgEntries;
+        SvgDocumentEntry[]? _loadedEntries;
+        SvgDocumentEntry[] _entries
+        {
+            get => _loadedEntries ?? throw new NullReferenceException("SVG data has not been loaded or has been unloaded.");
+            set => _loadedEntries = value;
+        }
         protected override void ReadContentFrom(BinaryReader reader)
         {
             long svgTableStartAt = reader.BaseStream.Position;
@@ -118,7 +123,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                 _dicSvgEntries = null;
             }
 
-            _entries = null;
+            _loadedEntries = null;
         }
 
         public bool ReadSvgContent(ushort glyphIndex, System.Text.StringBuilder outputStBuilder)

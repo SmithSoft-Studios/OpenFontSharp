@@ -12,32 +12,37 @@ namespace OpenFontSharp.AdditionalInfo
     public class Languages
     {
         /// <summary>
-        /// meta table's supported langs
+        /// Gets supported language tags from the meta table, or null when not declared.
         /// </summary>
-        public string[] SupportedLangs { get; private set; }
+        public string[]? SupportedLangs { get; private set; }
         /// <summary>
-        /// meta table's design langs
+        /// Gets design language tags from the meta table, or null when not declared.
         /// </summary>
-        public string[] DesignLangs { get; private set; }
+        public string[]? DesignLangs { get; private set; }
 
+        /// <summary>Gets the OS/2 version used to interpret Unicode range bits.</summary>
         public ushort OS2Version { get; private set; }//for translate unicode ranges
+        /// <summary>Gets Unicode coverage bits 0 through 31.</summary>
         public uint UnicodeRange1 { get; private set; }
+        /// <summary>Gets Unicode coverage bits 32 through 63.</summary>
         public uint UnicodeRange2 { get; private set; }
+        /// <summary>Gets Unicode coverage bits 64 through 95.</summary>
         public uint UnicodeRange3 { get; private set; }
+        /// <summary>Gets Unicode coverage bits 96 through 127.</summary>
         public uint UnicodeRange4 { get; private set; }
 
         /// <summary>
-        /// actual GSUB script list
+        /// Gets the substitution script list, or null when no GSUB table is available.
         /// </summary>
-        public ScriptList GSUBScriptList { get; private set; }
+        public ScriptList? GSUBScriptList { get; private set; }
         /// <summary>
-        /// actual GPOS script list
+        /// Gets the positioning script list, or null when no GPOS table is available.
         /// </summary>
-        public ScriptList GPOSScriptList { get; private set; }
+        public ScriptList? GPOSScriptList { get; private set; }
 
-        Cmap _cmap;
+        Cmap? _cmap;
 
-        internal void Update(OS2Table os2Tabble, Meta meta, Cmap cmap, GSUB gsub, GPOS gpos)
+        internal void Update(OS2Table os2Tabble, Meta? meta, Cmap? cmap, GSUB? gsub, GPOS? gpos)
         {
             //https://docs.microsoft.com/en-us/typography/opentype/spec/os2#ur
 

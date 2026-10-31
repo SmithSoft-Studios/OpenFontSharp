@@ -29,15 +29,21 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
     ////////////////////////////////////////////////////////////////
 
+    /// <summary>
+    /// Represents OpenType glyph-substitution lookups and their script and feature data.
+    /// </summary>
     public partial class GSUB : GlyphShapingTableEntry
     {
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "GSUB";
+        /// <inheritdoc />
         public override string Name => _N;
 
 #if DEBUG
         public GSUB() { }
 #endif
         //
+        /// <inheritdoc />
         protected override void ReadLookupTable(BinaryReader reader, long lookupTablePos,
                                                 ushort lookupType, ushort lookupFlags,
                                                 ushort[] subTableOffsets, ushort markFilteringSet)
@@ -59,6 +65,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             LookupList.Add(lookupTable);
         }
 
+        /// <inheritdoc />
         protected override void ReadFeatureVariations(BinaryReader reader, long featureVariationsBeginAt)
         {
             Utils.WarnUnimplemented("GSUB feature variations");
@@ -66,6 +73,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         private List<LookupTable> _lookupList = new List<LookupTable>();
 
+        /// <summary>Gets the lookup tables in their zero-based lookup-list order.</summary>
         public IList<LookupTable> LookupList => _lookupList;
 
 
@@ -75,8 +83,21 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         /// </summary>
         public abstract class LookupSubTable
         {
-            public GSUB OwnerGSub;
+            /// <summary>Gets or sets the GSUB table that owns this subtable.</summary>
+            public GSUB? OwnerGSub;
+            /// <summary>Gets the owning table after the subtable has been attached to it.</summary>
+            /// <exception cref="InvalidOperationException">The subtable has not been attached to a GSUB table.</exception>
+            private protected GSUB Owner => OwnerGSub
+                ?? throw new InvalidOperationException("The GSUB subtable has no owning table.");
 
+            private protected static T RequireParsed<T>(T? value) where T : class
+                => value ?? throw new InvalidOperationException("The GSUB subtable has not been parsed.");
+
+            /// <summary>Applies this substitution subtable at the specified glyph position.</summary>
+            /// <param name="glyphIndices">The glyph-index sequence to update.</param>
+            /// <param name="pos">The starting position in the sequence.</param>
+            /// <param name="len">The number of glyph indices available from that position.</param>
+            /// <returns><see langword="true"/> if a substitution was applied.</returns>
             public abstract bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len);
 
             //collect all substitution glyphs
@@ -86,6 +107,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //we may miss some glyph that is needed for substitution process.
             //                
             //so, we collect it here, based on current script lang.
+            /// <summary>Collects glyphs that may be produced by this subtable.</summary>
+            /// <param name="outputAssocGlyphs">The collection to append associated glyph identifiers to.</param>
             public abstract void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs);
 
         }
@@ -96,17 +119,22 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         public class UnImplementedLookupSubTable : LookupSubTable
         {
             readonly string _message;
+            /// <summary>Creates a placeholder for an unsupported substitution subtable.</summary>
+            /// <param name="msg">A description of the unsupported subtable.</param>
             public UnImplementedLookupSubTable(string msg)
             {
                 _message = msg;
                 Utils.WarnUnimplemented(msg);
             }
+            /// <inheritdoc />
             public override string ToString() => _message;
 
+            /// <inheritdoc />
             public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
             {
                 return false;
             }
+            /// <inheritdoc />
             public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
             {
                 Utils.WarnUnimplemented("collect-assoc-sub-glyph: " + this.ToString());
@@ -115,9 +143,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
 
 
-        /// <summary>
-        /// sub table of a lookup list
-        /// </summary>
+        /// <summary>Groups subtables sharing one GSUB lookup type and flags.</summary>
         public partial class LookupTable
         {
 #if DEBUG
@@ -125,18 +151,29 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 #endif
             //--------------------------
 
+            /// <summary>Gets the flags controlling how this lookup is applied.</summary>
             public readonly ushort lookupFlags;
+            /// <summary>Gets the index of the mark filtering set for this lookup.</summary>
             public readonly ushort markFilteringSet;
 
+            /// <summary>Creates a lookup with its flags and mark filtering set.</summary>
+            /// <param name="lookupFlags">Flags controlling lookup application.</param>
+            /// <param name="markFilteringSet">The mark filtering set index.</param>
             public LookupTable(ushort lookupFlags, ushort markFilteringSet)
             {
                 this.lookupFlags = lookupFlags;
                 this.markFilteringSet = markFilteringSet;
             }
             //
-            public LookupSubTable[] SubTables { get; internal set; }
+            /// <summary>Gets or sets the subtables that implement this lookup.</summary>
+            public LookupSubTable[] SubTables { get; internal set; } = Array.Empty<LookupSubTable>();
 
             //
+            /// <summary>Applies the first matching substitution in this lookup.</summary>
+            /// <param name="inputGlyphs">The glyph-index sequence to update.</param>
+            /// <param name="pos">The starting position in the sequence.</param>
+            /// <param name="len">The number of glyph indices available from that position.</param>
+            /// <returns><see langword="true"/> if a substitution was applied.</returns>
             public bool DoSubstitutionAt(IGlyphIndexList inputGlyphs, int pos, int len)
             {
                 foreach (LookupSubTable subTable in SubTables)
@@ -151,6 +188,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 return false;
             }
 
+            /// <summary>Collects glyphs that may be produced by this lookup.</summary>
+            /// <param name="outputAssocGlyphs">The collection to append associated glyph identifiers to.</param>
             public void CollectAssociatedSubstitutionGlyph(List<ushort> outputAssocGlyphs)
             {
 
@@ -167,6 +206,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 }
             }
 
+            /// <summary>Reads a GSUB lookup subtable of the specified type.</summary>
+            /// <param name="lookupType">The OpenType substitution lookup type.</param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The subtable offset.</param>
+            /// <returns>The parsed subtable or a placeholder for an unsupported type.</returns>
             public static LookupSubTable ReadSubTable(int lookupType, BinaryReader reader, long subTableStartAt)
             {
                 switch (lookupType)
@@ -262,7 +306,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 1: Single Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType1(BinaryReader reader, long subTableStartAt)
             {
                 //---------------------
@@ -339,9 +384,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableT2 : LookupSubTable
             {
-
-                public CoverageTable CoverageTable { get; set; }
-                public SequenceTable[] SeqTables { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public SequenceTable[] SeqTables { get; set; } = Array.Empty<SequenceTable>();
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
                     int foundPos = CoverageTable.FindPosition(glyphIndices[pos]);
@@ -384,7 +429,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 2: Multiple Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType2(BinaryReader reader, long subTableStartAt)
             {
                 //LookupType 2: Multiple Substitution Subtable 
@@ -455,8 +501,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// </summary>
             class LkSubTableT3 : LookupSubTable
             {
-                public CoverageTable CoverageTable { get; set; }
-                public AlternativeSetTable[] AlternativeSetTables { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public AlternativeSetTable[] AlternativeSetTables { get; set; } = Array.Empty<AlternativeSetTable>();
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
                     //Coverage table containing the indices of glyphs with alternative forms(Coverage),
@@ -467,13 +514,14 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 }
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
-                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString());
+                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString() ?? GetType().Name);
                 }
             }
             /// <summary>
             /// LookupType 3: Alternate Substitution Subtable 
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType3(BinaryReader reader, long subTableStartAt)
             {
                 //LookupType 3: Alternate Substitution Subtable
@@ -541,7 +589,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class AlternativeSetTable
             {
-                public ushort[] alternativeGlyphIds;
+                public ushort[] alternativeGlyphIds = Array.Empty<ushort>();
                 public static AlternativeSetTable CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -555,8 +603,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubTableT4 : LookupSubTable
             {
-                public CoverageTable CoverageTable { get; set; }
-                public LigatureSetTable[] LigatureSetTables { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public LigatureSetTable[] LigatureSetTables { get; set; } = Array.Empty<LigatureSetTable>();
 
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
@@ -614,7 +663,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //uint16 	LigatureCount 	Number of Ligature tables
                 //Offset16 	Ligature[LigatureCount] 	Array of offsets to Ligature tables-from beginning of LigatureSet table-ordered by preference
 
-                public LigatureTable[] Ligatures { get; set; }
+                public LigatureTable[] Ligatures { get; set; } = Array.Empty<LigatureTable>();
                 public static LigatureSetTable CreateFrom(BinaryReader reader, long beginAt)
                 {
                     LigatureSetTable ligSetTable = new LigatureSetTable();
@@ -683,7 +732,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 4: Ligature Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType4(BinaryReader reader, long subTableStartAt)
             {
                 //LookupType 4: Ligature Substitution Subtable
@@ -775,7 +825,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 5: Contextual Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType5(BinaryReader reader, long subTableStartAt)
             {
 
@@ -867,8 +918,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// </summary>
             class LkSubTableT5Fmt1 : LookupSubTable
             {
-                public CoverageTable coverageTable;
-                public LkSubT5Fmt1_SubRuleSet[] subRuleSets;
+                public CoverageTable? coverageTable;
+                public LkSubT5Fmt1_SubRuleSet[] subRuleSets = Array.Empty<LkSubT5Fmt1_SubRuleSet>();
 
                 //5.1 Context Substitution Format 1: Simple Glyph Contexts
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
@@ -879,7 +930,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
 
-                    int coverage_pos = coverageTable.FindPosition(glyphIndices[pos]);
+                    int coverage_pos = (coverageTable ?? throw new InvalidOperationException("The GSUB subtable has not been parsed."))
+                        .FindPosition(glyphIndices[pos]);
                     if (coverage_pos < 0) { return false; }
 
 
@@ -891,7 +943,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubT5Fmt1_SubRuleSet
             {
-                public LkSubT5Fmt1_SubRule[] subRules;
+                public LkSubT5Fmt1_SubRule[] subRules = Array.Empty<LkSubT5Fmt1_SubRule>();
                 public static LkSubT5Fmt1_SubRuleSet CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -931,8 +983,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //SubstLookupRecord substLookupRecords[substitutionCount] 	Array of SubstLookupRecords, in design order
 
 
-                public ushort[] inputSequence;
-                public SubstLookupRecord[] substRecords;
+                public ushort[] inputSequence = Array.Empty<ushort>();
+                public SubstLookupRecord[] substRecords = Array.Empty<SubstLookupRecord>();
 
                 public void ReadFrom(BinaryReader reader, long pos)
                 {
@@ -956,14 +1008,18 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //Contexts are then defined as sequences of glyph class values.
                 //More than one context may be defined at a time.
 
-                public CoverageTable coverageTable;
-                public ClassDefTable classDef;
-                public LkSubT5Fmt2_SubClassSet[] subClassSets;
+                public CoverageTable? coverageTable;
+                public ClassDefTable? classDef;
+                public LkSubT5Fmt2_SubClassSet[] subClassSets = Array.Empty<LkSubT5Fmt2_SubClassSet>();
 
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
                     //collect only assoc  
                     Dictionary<int, bool> collected = new Dictionary<int, bool>();
+                    CoverageTable coverageTable = this.coverageTable
+                        ?? throw new InvalidOperationException("The GSUB subtable has not been parsed.");
+                    ClassDefTable classDef = this.classDef
+                        ?? throw new InvalidOperationException("The GSUB subtable has not been parsed.");
                     foreach (ushort glyphIndex in coverageTable.GetExpandedValueIter())
                     {
                         int class_value = classDef.GetClassValue(glyphIndex);
@@ -985,7 +1041,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                                 for (int n = 0; n < rule.substRecords.Length; ++n)
                                 {
                                     SubstLookupRecord rect = rule.substRecords[n];
-                                    LookupTable anotherLookup = OwnerGSub.LookupList[rect.lookupListIndex];
+                                    LookupTable anotherLookup = Owner.LookupList[rect.lookupListIndex];
                                     anotherLookup.CollectAssociatedSubstitutionGlyph(outputAssocGlyphs);
                                 }
                             }
@@ -995,6 +1051,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
+                    CoverageTable coverageTable = this.coverageTable
+                        ?? throw new InvalidOperationException("The GSUB subtable has not been parsed.");
+                    ClassDefTable classDef = this.classDef
+                        ?? throw new InvalidOperationException("The GSUB subtable has not been parsed.");
                     int coverage_pos = coverageTable.FindPosition(glyphIndices[pos]);
                     if (coverage_pos < 0) { return false; }
 
@@ -1036,7 +1096,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
             class LkSubT5Fmt2_SubClassSet
             {
-                public LkSubT5Fmt2_SubClassRule[] subClassRules;
+                public LkSubT5Fmt2_SubClassRule[] subClassRules = Array.Empty<LkSubT5Fmt2_SubClassRule>();
 
                 public static LkSubT5Fmt2_SubClassSet CreateFrom(BinaryReader reader, long beginAt)
                 {
@@ -1072,8 +1132,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //uint16 	inputSequence[glyphCount - 1] 	Array of classes to be matched to the input glyph sequence, beginning with the second glyph position.
                 //SubstLookupRecord 	        substLookupRecords[substitutionCount] 	Array of Substitution lookups, in design order.
 
-                public ushort[] inputSequence;
-                public SubstLookupRecord[] substRecords;
+                public ushort[] inputSequence = Array.Empty<ushort>();
+                public SubstLookupRecord[] substRecords = Array.Empty<SubstLookupRecord>();
                 public void ReadFrom(BinaryReader reader, long pos)
                 {
                     reader.BaseStream.Seek(pos, SeekOrigin.Begin);
@@ -1123,7 +1183,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //For text written from right to left, the right-most glyph will be first; conversely, 
                 //for text written from left to right, the left-most glyph will be first.
 
-                ChainSubRuleSubTable[] _chainSubRuleSubTables;
+                ChainSubRuleSubTable[] _chainSubRuleSubTables = Array.Empty<ChainSubRuleSubTable>();
                 public static ChainSubRuleSetTable CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -1204,10 +1264,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //uint16 	SubstCount 	                        Number of SubstLookupRecords
                 //struct 	SubstLookupRecord[SubstCount] 	    Array of SubstLookupRecords (in design order)
 
-                ushort[] backTrackingGlyphs;
-                ushort[] inputGlyphs;
-                ushort[] lookaheadGlyphs;
-                SubstLookupRecord[] substLookupRecords;
+                ushort[] backTrackingGlyphs = Array.Empty<ushort>();
+                ushort[] inputGlyphs = Array.Empty<ushort>();
+                ushort[] lookaheadGlyphs = Array.Empty<ushort>();
+                SubstLookupRecord[] substLookupRecords = Array.Empty<SubstLookupRecord>();
                 public static ChainSubRuleSubTable CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -1255,7 +1315,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //A ChainSubClassRule also contains a count of the substitutions to be performed on the context (SubstCount) and an array of SubstLookupRecords (SubstLookupRecord) that supply the substitution data. For each position in the context that requires a substitution, a SubstLookupRecord specifies a LookupList index and a position in the input glyph sequence where the lookup is applied. The SubstLookupRecord array lists SubstLookupRecords in design order-that is, the order in which lookups should be applied to the entire glyph sequence.
 
 
-                ChainSubClassRuleTable[] subClassRuleTables;
+                ChainSubClassRuleTable[] subClassRuleTables = Array.Empty<ChainSubClassRuleTable>();
                 public static ChainSubClassSet CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -1285,10 +1345,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //USHORT 	SubstCount 	                    Number of SubstLookupRecords
                 //struct 	SubstLookupRecord[SubstCount] 	Array of SubstLookupRecords (in design order)
 
-                ushort[] backtrakcingClassDefs;
-                ushort[] inputClassDefs;
-                ushort[] lookaheadClassDefs;
-                SubstLookupRecord[] subsLookupRecords;
+                ushort[] backtrakcingClassDefs = Array.Empty<ushort>();
+                ushort[] inputClassDefs = Array.Empty<ushort>();
+                ushort[] lookaheadClassDefs = Array.Empty<ushort>();
+                SubstLookupRecord[] subsLookupRecords = Array.Empty<SubstLookupRecord>();
                 public static ChainSubClassRuleTable CreateFrom(BinaryReader reader, long beginAt)
                 {
                     reader.BaseStream.Seek(beginAt, SeekOrigin.Begin);
@@ -1310,8 +1370,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //-------------------------------------------------------------
             class LkSubTableT6Fmt1 : LookupSubTable
             {
-                public CoverageTable CoverageTable { get; set; }
-                public ChainSubRuleSetTable[] SubRuleSets { get; set; }
+                CoverageTable? _coverageTable;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public ChainSubRuleSetTable[] SubRuleSets { get; set; } = Array.Empty<ChainSubRuleSetTable>();
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
                     Utils.WarnUnimplemented("GSUB, Lookup Subtable Type 6 Format 1");
@@ -1319,7 +1380,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 }
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
-                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString());
+                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString() ?? GetType().Name);
                 }
             }
 
@@ -1336,11 +1397,15 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //In other words, the Coverage table contains the list of glyph indices for all the glyphs in all classes 
                 //that may be first in any of the context class sequences
 
-                public CoverageTable CoverageTable { get; set; }
-                public ClassDefTable BacktrackClassDef { get; set; }
-                public ClassDefTable InputClassDef { get; set; }
-                public ClassDefTable LookaheadClassDef { get; set; }
-                public ChainSubClassSet[] ChainSubClassSets { get; set; }
+                CoverageTable? _coverageTable;
+                ClassDefTable? _backtrackClassDef;
+                ClassDefTable? _inputClassDef;
+                ClassDefTable? _lookaheadClassDef;
+                public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
+                public ClassDefTable BacktrackClassDef { get => RequireParsed(_backtrackClassDef); set => _backtrackClassDef = value; }
+                public ClassDefTable InputClassDef { get => RequireParsed(_inputClassDef); set => _inputClassDef = value; }
+                public ClassDefTable LookaheadClassDef { get => RequireParsed(_lookaheadClassDef); set => _lookaheadClassDef = value; }
+                public ChainSubClassSet[] ChainSubClassSets { get; set; } = Array.Empty<ChainSubClassSet>();
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
 
@@ -1357,16 +1422,16 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 }
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
-                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString());
+                    Utils.WarnUnimplementedCollectAssocGlyphs(this.ToString() ?? GetType().Name);
                 }
             }
 
             class LkSubTableT6Fmt3 : LookupSubTable
             {
-                public CoverageTable[] BacktrackingCoverages { get; set; }
-                public CoverageTable[] InputCoverages { get; set; }
-                public CoverageTable[] LookaheadCoverages { get; set; }
-                public SubstLookupRecord[] SubstLookupRecords { get; set; }
+                public CoverageTable[] BacktrackingCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public CoverageTable[] InputCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public CoverageTable[] LookaheadCoverages { get; set; } = Array.Empty<CoverageTable>();
+                public SubstLookupRecord[] SubstLookupRecords { get; set; } = Array.Empty<SubstLookupRecord>();
 
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
@@ -1417,7 +1482,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                         ushort replaceAt = lookupRecord.sequenceIndex;
                         ushort lookupIndex = lookupRecord.lookupListIndex;
 
-                        LookupTable anotherLookup = OwnerGSub.LookupList[lookupIndex];
+                        LookupTable anotherLookup = Owner.LookupList[lookupIndex];
                         if (anotherLookup.DoSubstitutionAt(glyphIndices, pos + replaceAt, len - replaceAt))
                         {
                             hasChanged = true;
@@ -1433,7 +1498,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                         ushort replaceAt = lookupRecord.sequenceIndex;
                         ushort lookupIndex = lookupRecord.lookupListIndex;
 
-                        LookupTable anotherLookup = OwnerGSub.LookupList[lookupIndex];
+                        LookupTable anotherLookup = Owner.LookupList[lookupIndex];
                         anotherLookup.CollectAssociatedSubstitutionGlyph(outputAssocGlyphs);
                     }
                 }
@@ -1442,7 +1507,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 6: Chaining Contextual Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType6(BinaryReader reader, long subTableStartAt)
             {
                 //LookupType 6: Chaining Contextual Substitution Subtable
@@ -1564,7 +1630,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 7: Extension Substitution
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType7(BinaryReader reader, long subTableStartAt)
             {
                 //LookupType 7: Extension Substitution
@@ -1614,7 +1681,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <summary>
             /// LookupType 8: Reverse Chaining Contextual Single Substitution Subtable
             /// </summary>
-            /// <param name="reader"></param>
+            /// <param name="reader">The reader for the OpenType data.</param>
+            /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType8(BinaryReader reader, long subTableStartAt)
             {
                 throw new NotImplementedException();

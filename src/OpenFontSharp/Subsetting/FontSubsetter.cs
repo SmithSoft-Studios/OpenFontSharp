@@ -26,10 +26,14 @@ public static class FontSubsetter
     /// Subsets a font from its raw bytes, retaining only the specified glyphs.
     /// </summary>
     /// <remarks>
-    /// The output is always a plain sfnt font (never WOFF). When every glyph, or no
-    /// is requested, the font is returned whole with an empty
+    /// The output is always a plain sfnt font (never WOFF). When every glyph
+    /// is retained, the font is returned whole with an empty
     /// <see cref="SubsetResult.GlyphIdMap"/>.
     /// </remarks>
+    /// <param name="fontData">The original standalone font or WOFF1 bytes.</param>
+    /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against the original font.</param>
+    /// <returns>The font bytes and old-to-new ID map; an empty map means IDs are unchanged.</returns>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">
     /// The font's format cannot be subset (collection without an index, WOFF2, CFF2,
     /// CID-keyed CFF, or unrecognised data).
@@ -76,6 +80,11 @@ public static class FontSubsetter
     /// <summary>
     /// Subsets one font of a TrueType/OpenType collection (TTC).
     /// </summary>
+    /// <param name="fontData">The complete collection bytes.</param>
+    /// <param name="fontIndex">The zero-based collection member index.</param>
+    /// <param name="usedGlyphIds">Glyph IDs from the selected original member.</param>
+    /// <returns>The standalone member subset and ID remapping.</returns>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">The data is not a collection, or the chosen font cannot be subset.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="fontIndex"/> is not in the collection.</exception>
     public static SubsetResult Subset(byte[] fontData, int fontIndex, ISet<ushort> usedGlyphIds)
@@ -102,6 +111,10 @@ public static class FontSubsetter
     /// <summary>
     /// Subsets a parsed font from the original bytes it was read from.
     /// </summary>
+    /// <param name="typeface">The original parsed font with retained source bytes.</param>
+    /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against that font.</param>
+    /// <returns>The standalone subset and ID remapping.</returns>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">
     /// The typeface holds no original bytes (it was read from a non-seekable stream), or
     /// its format cannot be subset.
@@ -371,9 +384,8 @@ public static class FontSubsetter
     }
 
     /// <summary>
-    /// Builds a format 4 cmap mapping the subset glyph ids into the Unicode private use
-    /// area. The font is embedded as Identity-H, so nothing consults this mapping; it
-    /// exists so the file remains a valid font in its own right.
+    /// Builds a format 4 cmap with only the terminator segment.
+    /// Identity-H embedding addresses glyphs directly and does not use Unicode cmap lookup.
     /// </summary>
     private static byte[] BuildIdentityCmap(
         IReadOnlyList<ushort> retained, IReadOnlyDictionary<ushort, ushort> glyphIdMap)

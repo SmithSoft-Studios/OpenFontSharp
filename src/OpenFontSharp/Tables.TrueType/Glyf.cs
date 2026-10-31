@@ -7,7 +7,7 @@ namespace OpenFontSharp.Tables.TrueType
         public const string _N = "glyf";
         public override string Name => _N;
         //
-        Glyph[] _glyphs;
+        Glyph[]? _glyphs;
         readonly GlyphLocations _glyphLocations;
 
         //--------------------
@@ -21,7 +21,7 @@ namespace OpenFontSharp.Tables.TrueType
         }
         public Glyph[] Glyphs
         {
-            get => _glyphs;
+            get => _glyphs ?? throw new NullReferenceException("The glyph table has not been loaded.");
             internal set => _glyphs = value;
         }
         protected override void ReadContentFrom(BinaryReader reader)
@@ -29,7 +29,8 @@ namespace OpenFontSharp.Tables.TrueType
             uint tableOffset = this.Header.Offset;
             GlyphLocations locations = _glyphLocations;
             int glyphCount = locations.GlyphCount;
-            _glyphs = new Glyph[glyphCount];
+            Glyph[] glyphs = new Glyph[glyphCount];
+            _glyphs = glyphs;
 
             List<ushort> compositeGlyphs = new List<ushort>();
 
@@ -51,7 +52,7 @@ namespace OpenFontSharp.Tables.TrueType
                     if (contoursCount >= 0)
                     {
                         Bounds bounds = Utils.ReadBounds(reader);
-                        _glyphs[i] = ReadSimpleGlyph(reader, contoursCount, bounds, (ushort)i);
+                        glyphs[i] = ReadSimpleGlyph(reader, contoursCount, bounds, (ushort)i);
                     }
                     else
                     {
@@ -62,7 +63,7 @@ namespace OpenFontSharp.Tables.TrueType
                 }
                 else
                 {
-                    _glyphs[i] = _emptyGlyph;
+                    glyphs[i] = _emptyGlyph;
                 }
             }
 
@@ -78,7 +79,7 @@ namespace OpenFontSharp.Tables.TrueType
                 //{ 
                 //}
 #endif
-                _glyphs[glyphIndex] = ReadCompositeGlyph(_glyphs, reader, tableOffset, glyphIndex);
+                glyphs[glyphIndex] = ReadCompositeGlyph(glyphs, reader, tableOffset, glyphIndex);
 
 
             }
@@ -284,7 +285,7 @@ namespace OpenFontSharp.Tables.TrueType
             short contoursCount = reader.ReadInt16(); // ignored
             Bounds bounds = Utils.ReadBounds(reader);
 
-            Glyph finalGlyph = null;
+            Glyph? finalGlyph = null;
             CompositeGlyphFlags flags;
 
 #if DEBUG
@@ -492,7 +493,9 @@ namespace OpenFontSharp.Tables.TrueType
             {
                 ushort numInstr = reader.ReadUInt16();
                 byte[] insts = reader.ReadBytes(numInstr);
-                finalGlyph.GlyphInstructions = insts;
+                (finalGlyph ?? throw new NullReferenceException(
+                    "A composite glyph with instructions must contain at least one component."))
+                    .GlyphInstructions = insts;
             }
             //F2DOT14 	16-bit signed fixed number with the low 14 bits of fraction (2.14).
             //Transformation Option

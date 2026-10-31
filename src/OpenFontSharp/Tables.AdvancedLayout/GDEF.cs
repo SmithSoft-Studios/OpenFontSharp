@@ -165,11 +165,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
         public int MajorVersion { get; private set; }
         public int MinorVersion { get; private set; }
-        public ClassDefTable GlyphClassDef { get; private set; }
-        public AttachmentListTable AttachmentListTable { get; private set; }
-        public LigCaretList LigCaretList { get; private set; }
-        public ClassDefTable MarkAttachmentClassDef { get; private set; }
-        public MarkGlyphSetsTable MarkGlyphSetsTable { get; private set; }
+        public ClassDefTable? GlyphClassDef { get; private set; }
+        public AttachmentListTable? AttachmentListTable { get; private set; }
+        public LigCaretList? LigCaretList { get; private set; }
+        public ClassDefTable? MarkAttachmentClassDef { get; private set; }
+        public MarkGlyphSetsTable? MarkGlyphSetsTable { get; private set; }
 
         //------------------------
         /// <summary>
@@ -192,7 +192,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         void FillClassDefs(Glyph[] inputGlyphs)
         {
             //1. glyph def 
-            ClassDefTable classDef = GlyphClassDef;
+            ClassDefTable? classDef = GlyphClassDef;
             if (classDef == null) return;
             //-----------------------------------------
 
@@ -204,7 +204,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 case 1:
                     {
                         ushort startGlyph = classDef.startGlyph;
-                        ushort[] classValues = classDef.classValueArray;
+                        ushort[] classValues = classDef.classValueArray
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         int gIndex = startGlyph;
                         for (int i = 0; i < classValues.Length; ++i)
                         {
@@ -224,7 +225,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     break;
                 case 2:
                     {
-                        ClassDefTable.ClassRangeRecord[] records = classDef.records;
+                        ClassDefTable.ClassRangeRecord[] records = classDef.records
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         for (int n = 0; n < records.Length; ++n)
                         {
                             ClassDefTable.ClassRangeRecord rec = records[n];
@@ -249,7 +251,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
         void FillAttachPoints(Glyph[] inputGlyphs)
         {
-            AttachmentListTable attachmentListTable = this.AttachmentListTable;
+            AttachmentListTable? attachmentListTable = this.AttachmentListTable;
             if (attachmentListTable == null) { return; }
             //-----------------------------------------
 
@@ -266,7 +268,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //that can be used in lookup tables within the GSUB or GPOS table to control how mark glyphs within a glyph sequence are treated by lookups.
             //For more information on the use of mark attachment classes, 
             //see the description of lookup flags in the “Lookup Table” section of the chapter, OpenType Layout Common Table Formats.
-            ClassDefTable markAttachmentClassDef = this.MarkAttachmentClassDef;
+            ClassDefTable? markAttachmentClassDef = this.MarkAttachmentClassDef;
             if (markAttachmentClassDef == null) return;
             //-----------------------------------------
 
@@ -278,7 +280,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 case 1:
                     {
                         ushort startGlyph = markAttachmentClassDef.startGlyph;
-                        ushort[] classValues = markAttachmentClassDef.classValueArray;
+                        ushort[] classValues = markAttachmentClassDef.classValueArray
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
 
                         int len = classValues.Length;
                         int gIndex = startGlyph;
@@ -295,7 +298,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     break;
                 case 2:
                     {
-                        ClassDefTable.ClassRangeRecord[] records = markAttachmentClassDef.records;
+                        ClassDefTable.ClassRangeRecord[] records = markAttachmentClassDef.records
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         int len = records.Length;
                         for (int n = 0; n < len; ++n)
                         {
@@ -318,7 +322,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //A Mark Glyph Sets table is used to define sets of mark glyphs that can be used in lookup tables within the GSUB or GPOS table to control 
             //how mark glyphs within a glyph sequence are treated by lookups. For more information on the use of mark glyph sets,
             //see the description of lookup flags in the “Lookup Table” section of the chapter, OpenType Layout Common Table Formats.
-            MarkGlyphSetsTable markGlyphSets = this.MarkGlyphSetsTable;
+            MarkGlyphSetsTable? markGlyphSets = this.MarkGlyphSetsTable;
             if (markGlyphSets == null) return;
             //-----------------------------------------
 

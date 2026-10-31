@@ -14,24 +14,38 @@ using OpenFontSharp.Tables.Variations;
 
 namespace OpenFontSharp
 {
+    /// <summary>Read options. The current reader loads all tables regardless of these flags.</summary>
     [Flags]
     public enum ReadFlags
     {
+        /// <summary>Read the complete font.</summary>
         Full = 0,
+        /// <summary>Reserved name-only option; use <see cref="OpenFontReader.ReadPreview"/> for previews.</summary>
         Name = 1,
+        /// <summary>Reserved metrics option.</summary>
         Metrics = 1 << 2,
+        /// <summary>Reserved advanced layout option.</summary>
         AdvancedLayout = 1 << 3,
+        /// <summary>Reserved variation option.</summary>
         Variation = 1 << 4
     }
 
+    /// <summary>Reports a font parsing error.</summary>
     public class OpenFontException : Exception
     {
+        /// <summary>Creates a font parsing exception.</summary>
         public OpenFontException() { }
+        /// <summary>Creates a font parsing exception with a diagnostic message.</summary>
+        /// <param name="msg">The error description.</param>
         public OpenFontException(string msg) : base(msg) { }
     }
+    /// <summary>Reports a font format or operation not supported by the reader.</summary>
     public class OpenFontNotSupportedException : Exception
     {
+        /// <summary>Creates an unsupported-font exception.</summary>
         public OpenFontNotSupportedException() { }
+        /// <summary>Creates an unsupported-font exception with a diagnostic message.</summary>
+        /// <param name="msg">The unsupported feature description.</param>
         public OpenFontNotSupportedException(string msg) : base(msg) { }
     }
 
@@ -62,6 +76,7 @@ namespace OpenFontSharp
         }
     }
 
+    /// <summary>Reads font metadata, glyphs, and OpenType tables from seekable binary streams.</summary>
     public class OpenFontReader
     {
 
@@ -70,7 +85,7 @@ namespace OpenFontSharp
             public ushort majorVersion;
             public ushort minorVersion;
             public uint numFonts;
-            public int[] offsetTables;
+            public required int[] offsetTables;
             //
             //if version 2
             public uint dsigTag;
@@ -89,10 +104,11 @@ namespace OpenFontSharp
             for (uint i = 0; i < members.Length; ++i)
             {
                 PreviewFontInfo member = members[i];
-                if (!uniqueNames.ContainsKey(member.Name))
+                string name = member.Name!;
+                if (!uniqueNames.ContainsKey(name))
                 {
-                    uniqueNames.Add(member.Name, true);
-                    stbuilder.Append("," + member.Name);
+                    uniqueNames.Add(name, true);
+                    stbuilder.Append("," + name);
                 }
             }
             return stbuilder.ToString();
@@ -100,11 +116,13 @@ namespace OpenFontSharp
 
 
         /// <summary>
-        /// read only name entry
+        /// Reads names, classification, and language coverage without loading glyph outlines.
         /// </summary>
-        /// <param name="stream"></param>
-        /// <returns></returns>
-        public PreviewFontInfo ReadPreview(Stream stream)
+        /// <param name="stream">A readable, seekable font stream. The reader closes it when finished.</param>
+        /// <returns>A font or collection preview, or null when a web-font decoder cannot read it.</returns>
+        /// <exception cref="NullReferenceException">A required metadata table is missing.</exception>
+        /// <exception cref="EndOfStreamException">The stream ends before a required value can be read.</exception>
+        public PreviewFontInfo? ReadPreview(Stream stream)
         {
             //var little = BitConverter.IsLittleEndian;
             using (var input = new ByteOrderSwappingBinaryReader(stream))
@@ -167,10 +185,8 @@ namespace OpenFontSharp
             //uint32 	dsigLength 	    The length (in bytes) of the DSIG table (null if no signature)
             //uint32 	dsigOffset 	    The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
 
-            var ttcHeader = new FontCollectionHeader();
-
-            ttcHeader.majorVersion = input.ReadUInt16();
-            ttcHeader.minorVersion = input.ReadUInt16();
+            ushort majorVersion = input.ReadUInt16();
+            ushort minorVersion = input.ReadUInt16();
             uint numFonts = input.ReadUInt32();
             int[] offsetTables = new int[numFonts];
             for (uint i = 0; i < numFonts; ++i)
@@ -178,8 +194,13 @@ namespace OpenFontSharp
                 offsetTables[i] = input.ReadInt32();
             }
 
-            ttcHeader.numFonts = numFonts;
-            ttcHeader.offsetTables = offsetTables;
+            var ttcHeader = new FontCollectionHeader
+            {
+                majorVersion = majorVersion,
+                minorVersion = minorVersion,
+                numFonts = numFonts,
+                offsetTables = offsetTables
+            };
             //
             if (ttcHeader.majorVersion == 2)
             {
@@ -215,14 +236,22 @@ namespace OpenFontSharp
             }
             return ReadPreviewFontInfo(tables, input);
         }
-        public Typeface Read(Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
+        /// <summary>Reads one font, optionally at a collection member's stream offset.</summary>
+        /// <param name="stream">A readable, seekable stream. The reader closes it when finished.</param>
+        /// <param name="streamStartOffset">The member offset obtained from <see cref="ReadPreview"/>, or zero for a standalone font.</param>
+        /// <param name="readFlags">Reserved read options; the current implementation loads all tables.</param>
+        /// <returns>The parsed font, or null for a collection without a member offset or when decoding fails.</returns>
+        /// <exception cref="NullReferenceException">A required font table is missing.</exception>
+        /// <exception cref="OpenFontNotSupportedException">The outline format is not supported.</exception>
+        /// <exception cref="EndOfStreamException">The font data is truncated.</exception>
+        public Typeface? Read(Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
             Typeface typeface = new Typeface();
 
             // Retain the original bytes. Subsetting has to copy glyph records verbatim,
             // and the parsed model cannot reproduce them faithfully, so a Typeface that
             // has forgotten where it came from cannot be subset at all.
-            byte[] originalData = CaptureOriginalBytes(stream, streamStartOffset);
+            byte[]? originalData = CaptureOriginalBytes(stream, streamStartOffset);
 
             if (Read(typeface, null, stream, streamStartOffset, readFlags))
             {
@@ -232,7 +261,7 @@ namespace OpenFontSharp
             return null;
         }
 
-        private static byte[] CaptureOriginalBytes(Stream stream, int streamStartOffset)
+        private static byte[]? CaptureOriginalBytes(Stream stream, int streamStartOffset)
         {
             if (!stream.CanSeek)
                 return null;
@@ -263,7 +292,7 @@ namespace OpenFontSharp
             }
         }
 
-        internal bool Read(Typeface typeface, RestoreTicket ticket, Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
+        internal bool Read(Typeface typeface, RestoreTicket? ticket, Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
 
             if (streamStartOffset > 0)
@@ -328,17 +357,14 @@ namespace OpenFontSharp
                 _input = input;
             }
             /// <summary>
-            /// read table if exists
+            /// Reads a table if it exists.
             /// </summary>
-            /// <typeparam name="T"></typeparam>
-            /// <param name="tableName"></param>
-            /// <param name="tables"></param>
-            /// <param name="reader"></param>
-            /// <param name="newTableDel"></param>
-            /// <returns></returns>
-            public T Read<T>(T resultTable) where T : TableEntry
+            /// <typeparam name="T">The expected table type.</typeparam>
+            /// <param name="resultTable">The table instance to populate.</param>
+            /// <returns>The loaded table, or null when absent.</returns>
+            public T? Read<T>(T resultTable) where T : TableEntry
             {
-                if (_tables.TryGetTable(resultTable.Name, out TableEntry found))
+                if (_tables.TryGetTable(resultTable.Name, out TableEntry? found))
                 {
                     //found table name
                     //check if we have read this table or not
@@ -373,6 +399,9 @@ namespace OpenFontSharp
                 //not found
                 return null;
             }
+
+            public T ReadRequired<T>(T resultTable) where T : TableEntry =>
+                Read(resultTable) ?? throw new NullReferenceException($"Required font table '{resultTable.Name}' is missing.");
         }
 
 
@@ -380,14 +409,14 @@ namespace OpenFontSharp
         {
             var rd = new EntriesReaderHelper(tables, input);
 
-            NameEntry nameEntry = rd.Read(new NameEntry());
-            OS2Table os2Table = rd.Read(new OS2Table());
+            NameEntry nameEntry = rd.ReadRequired(new NameEntry());
+            OS2Table os2Table = rd.ReadRequired(new OS2Table());
             //for preview, read ONLY  script list from gsub and gpos (set OnlyScriptList).
-            Meta metaTable = rd.Read(new Meta());
+            Meta? metaTable = rd.Read(new Meta());
 
-            GSUB gsub = rd.Read(new GSUB() { OnlyScriptList = true });
-            GPOS gpos = rd.Read(new GPOS() { OnlyScriptList = true });
-            Cmap cmap = rd.Read(new Cmap());
+            GSUB? gsub = rd.Read(new GSUB() { OnlyScriptList = true });
+            GPOS? gpos = rd.Read(new GPOS() { OnlyScriptList = true });
+            Cmap? cmap = rd.Read(new Cmap());
             //gsub and gpos contains actual script_list that are in the typeface
 
             Languages langs = new Languages();
@@ -417,8 +446,8 @@ namespace OpenFontSharp
             //------------------------------------
             //PART 2: glyphs detail 
             //2.1 True type font
-            GlyphLocations glyphLocations = ticket.HasTtf ? rd.Read(new GlyphLocations(typeface.MaxProfile.GlyphCount, typeface.Head.WideGlyphLocations)) : null;
-            Glyf glyf = ticket.HasTtf ? rd.Read(new Glyf(glyphLocations)) : null;
+            GlyphLocations? glyphLocations = ticket.HasTtf ? rd.ReadRequired(new GlyphLocations(typeface.MaxProfile.GlyphCount, typeface.Head.WideGlyphLocations)) : null;
+            Glyf? glyf = ticket.HasTtf ? rd.ReadRequired(new Glyf(glyphLocations!)) : null;
 
             typeface.GaspTable = ticket.GaspTable ? rd.Read(new Gasp()) : null;
 
@@ -428,7 +457,7 @@ namespace OpenFontSharp
 
 
             //2.2 Cff font             
-            CFFTable cff = ticket.HasCff ? rd.Read(new CFFTable()) : null;
+            CFFTable? cff = ticket.HasCff ? rd.Read(new CFFTable()) : null;
 
             bool isPostScriptOutline = false;
             bool isBitmapFont = false;
@@ -442,8 +471,8 @@ namespace OpenFontSharp
                     if (ticket.HasBitmapSource)
                     {
                         //reload only CBDT (embeded bitmap)
-                        CBDT cbdt = rd.Read(new CBDT());
-                        typeface._bitmapFontGlyphSource.LoadCBDT(cbdt);
+                        CBDT cbdt = rd.ReadRequired(new CBDT());
+                        typeface._bitmapFontGlyphSource!.LoadCBDT(cbdt);
                         //just clone existing glyph 
                         isBitmapFont = true;
                     }
@@ -467,10 +496,10 @@ namespace OpenFontSharp
             if (!isPostScriptOutline && !isBitmapFont)
             {
                 //for true-type font outline
-                FpgmTable fpgmTable = rd.Read(new FpgmTable());
+                FpgmTable? fpgmTable = rd.Read(new FpgmTable());
                 //control values table
-                CvtTable cvtTable = rd.Read(new CvtTable());
-                PrepTable propProgramTable = rd.Read(new PrepTable());
+                CvtTable? cvtTable = rd.Read(new CvtTable());
+                PrepTable? propProgramTable = rd.Read(new PrepTable());
 
                 typeface.ControlValues = cvtTable?._controlValues;
                 typeface.FpgmProgramBuffer = fpgmTable?._programBuffer;
@@ -495,7 +524,7 @@ namespace OpenFontSharp
             typeface._typefaceTrimMode = TrimMode.Restored;
             return true;
         }
-        internal bool ReadTableEntryCollection(Typeface typeface, RestoreTicket ticket, TableEntryCollection tables, BinaryReader input)
+        internal bool ReadTableEntryCollection(Typeface typeface, RestoreTicket? ticket, TableEntryCollection tables, BinaryReader input)
         {
             if (ticket != null)
             {
@@ -506,62 +535,62 @@ namespace OpenFontSharp
 
             var rd = new EntriesReaderHelper(tables, input);
             //PART 1: basic information
-            OS2Table os2Table = rd.Read(new OS2Table());
-            Meta meta = rd.Read(new Meta());
-            NameEntry nameEntry = rd.Read(new NameEntry());
-            Head head = rd.Read(new Head());
-            MaxProfile maxProfile = rd.Read(new MaxProfile());
-            HorizontalHeader horizontalHeader = rd.Read(new HorizontalHeader());
-            HorizontalMetrics horizontalMetrics = rd.Read(new HorizontalMetrics(horizontalHeader.NumberOfHMetrics, maxProfile.GlyphCount));
-            VerticalHeader vhea = rd.Read(new VerticalHeader());
+            OS2Table os2Table = rd.ReadRequired(new OS2Table());
+            Meta? meta = rd.Read(new Meta());
+            NameEntry? nameEntry = rd.Read(new NameEntry());
+            Head head = rd.ReadRequired(new Head());
+            MaxProfile maxProfile = rd.ReadRequired(new MaxProfile());
+            HorizontalHeader horizontalHeader = rd.ReadRequired(new HorizontalHeader());
+            HorizontalMetrics? horizontalMetrics = rd.Read(new HorizontalMetrics(horizontalHeader.NumberOfHMetrics, maxProfile.GlyphCount));
+            VerticalHeader? vhea = rd.Read(new VerticalHeader());
             if (vhea != null)
             {
-                VerticalMetrics vmtx = rd.Read(new VerticalMetrics(vhea.NumOfLongVerMetrics));
+                VerticalMetrics? vmtx = rd.Read(new VerticalMetrics(vhea.NumOfLongVerMetrics));
             }
 
             OS2FsSelection os2Select = new OS2FsSelection(os2Table.fsSelection);
             typeface._useTypographicMertic = os2Select.USE_TYPO_METRICS;
 
-            Cmap cmaps = rd.Read(new Cmap());
-            VerticalDeviceMetrics vdmx = rd.Read(new VerticalDeviceMetrics());
-            Kern kern = rd.Read(new Kern());
+            Cmap cmaps = rd.ReadRequired(new Cmap());
+            VerticalDeviceMetrics? vdmx = rd.Read(new VerticalDeviceMetrics());
+            Kern? kern = rd.Read(new Kern());
             //------------------------------------
             //PART 2: glyphs detail 
             //2.1 True type font
 
-            GlyphLocations glyphLocations = rd.Read(new GlyphLocations(maxProfile.GlyphCount, head.WideGlyphLocations));
-            Glyf glyf = rd.Read(new Glyf(glyphLocations));
-            Gasp gaspTable = rd.Read(new Gasp());
-            COLR colr = rd.Read(new COLR());
-            CPAL cpal = rd.Read(new CPAL());
+            GlyphLocations? glyphLocations = rd.Read(new GlyphLocations(maxProfile.GlyphCount, head.WideGlyphLocations));
+            Glyf? glyf = rd.Read(new Glyf(glyphLocations!));
+            Gasp? gaspTable = rd.Read(new Gasp());
+            COLR? colr = rd.Read(new COLR());
+            CPAL? cpal = rd.Read(new CPAL());
 
             //2.2 Cff font
-            PostTable postTable = rd.Read(new PostTable());
-            CFFTable cff = rd.Read(new CFFTable());
+            PostTable? postTable = rd.Read(new PostTable());
+            CFFTable? cff = rd.Read(new CFFTable());
 
             //additional math table (if available)
-            MathTable mathtable = rd.Read(new MathTable());
+            MathTable? mathtable = rd.Read(new MathTable());
             //------------------------------------
 
             //PART 3: advanced typography             
-            GDEF gdef = rd.Read(new GDEF());
-            GSUB gsub = rd.Read(new GSUB());
-            GPOS gpos = rd.Read(new GPOS());
-            BASE baseTable = rd.Read(new BASE());
-            JSTF jstf = rd.Read(new JSTF());
+            GDEF? gdef = rd.Read(new GDEF());
+            GSUB? gsub = rd.Read(new GSUB());
+            GPOS? gpos = rd.Read(new GPOS());
+            BASE? baseTable = rd.Read(new BASE());
+            JSTF? jstf = rd.Read(new JSTF());
 
-            STAT stat = rd.Read(new STAT());
+            STAT? stat = rd.Read(new STAT());
             if (stat != null)
             {
                 //variable font
-                FVar fvar = rd.Read(new FVar());
+                FVar? fvar = rd.Read(new FVar());
                 if (fvar != null)
                 {
-                    GVar gvar = rd.Read(new GVar());
-                    CVar cvar = rd.Read(new CVar());
-                    HVar hvar = rd.Read(new HVar());
-                    MVar mvar = rd.Read(new MVar());
-                    AVar avar = rd.Read(new AVar());
+                    GVar? gvar = rd.Read(new GVar());
+                    CVar? cvar = rd.Read(new CVar());
+                    HVar? hvar = rd.Read(new HVar());
+                    MVar? mvar = rd.Read(new MVar());
+                    AVar? avar = rd.Read(new AVar());
                 }
             }
 
@@ -575,10 +604,10 @@ namespace OpenFontSharp
                 if (cff == null)
                 {
                     //check  cbdt/cblc ?
-                    CBLC cblcTable = rd.Read(new CBLC());
+                    CBLC? cblcTable = rd.Read(new CBLC());
                     if (cblcTable != null)
                     {
-                        CBDT cbdtTable = rd.Read(new CBDT());
+                        CBDT cbdtTable = rd.ReadRequired(new CBDT());
                         //read cbdt 
                         //bitmap font
 
@@ -591,7 +620,7 @@ namespace OpenFontSharp
                     else
                     {
                         //TODO:
-                        EBLC fontBmpTable = rd.Read(new EBLC());
+                        EBLC? fontBmpTable = rd.Read(new EBLC());
                         throw new OpenFontNotSupportedException();
                     }
                 }
@@ -617,10 +646,10 @@ namespace OpenFontSharp
             if (!isPostScriptOutline && !isBitmapFont)
             {
                 //for true-type font outline
-                FpgmTable fpgmTable = rd.Read(new FpgmTable());
+                FpgmTable? fpgmTable = rd.Read(new FpgmTable());
                 //control values table
-                CvtTable cvtTable = rd.Read(new CvtTable());
-                PrepTable propProgramTable = rd.Read(new PrepTable());
+                CvtTable? cvtTable = rd.Read(new CvtTable());
+                PrepTable? propProgramTable = rd.Read(new PrepTable());
 
                 typeface.ControlValues = cvtTable?._controlValues;
                 typeface.FpgmProgramBuffer = fpgmTable?._programBuffer;

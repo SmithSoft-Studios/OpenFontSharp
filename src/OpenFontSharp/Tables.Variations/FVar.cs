@@ -19,8 +19,18 @@ namespace OpenFontSharp.Tables.Variations
         public override string Name => _N;
 
 
-        public VariableAxisRecord[] variableAxisRecords;
-        public InstanceRecord[] instanceRecords;
+        VariableAxisRecord[]? _parsedAxes;
+        public VariableAxisRecord[] variableAxisRecords
+        {
+            get => _parsedAxes ?? throw new NullReferenceException("The fvar axes have not been parsed.");
+            set => _parsedAxes = value;
+        }
+        InstanceRecord[]? _parsedInstances;
+        public InstanceRecord[] instanceRecords
+        {
+            get => _parsedInstances ?? throw new NullReferenceException("The fvar instances have not been parsed.");
+            set => _parsedInstances = value;
+        }
 
         //
         protected override void ReadContentFrom(BinaryReader reader)
@@ -125,7 +135,12 @@ namespace OpenFontSharp.Tables.Variations
             //uint16    axisNameID      The name ID for entries in the 'name' table that provide a display name for this axis.
 
 
-            public string axisTag;
+            string? _parsedAxisTag;
+            public string axisTag
+            {
+                get => _parsedAxisTag ?? throw new NullReferenceException("The axis tag has not been parsed.");
+                set => _parsedAxisTag = value;
+            }
             public float minValue;
             public float defaultValue;
             public float maxValue;
@@ -193,6 +208,5 @@ namespace OpenFontSharp.Tables.Variations
 
     }
 }
-
 
 

@@ -4,12 +4,15 @@ using OpenFontSharp.Tables;
 
 namespace OpenFontSharp;
 
+/// <summary>Records the tables and outline formats removed when a typeface is trimmed.</summary>
 public class RestoreTicket
 {
-  internal RestoreTicket()
+  internal RestoreTicket(string? typefaceName, TableHeader[] headers)
   {
+    TypefaceName = typefaceName;
+    Headers = headers;
   }
-  internal string TypefaceName { get; set; }
+  internal string? TypefaceName { get; }
 
   internal TableHeader[] Headers;
   internal bool HasTtf;
@@ -25,6 +28,7 @@ public class RestoreTicket
   internal bool GaspTable;
 }
 
+/// <summary>The current outline-retention state of a typeface.</summary>
 public enum TrimMode
 {
   /// <summary>
@@ -43,10 +47,24 @@ public enum TrimMode
 
 public static partial class TypefaceExtensions
 {
-  public static RestoreTicket TrimDown(this Typeface typeface) => typeface.TrimDownAndRemoveGlyphBuildingDetail();
+  /// <summary>Replaces glyphs with layout-only copies and unloads outline-related data.</summary>
+  /// <param name="typeface">The font to trim.</param>
+  /// <returns>A ticket for restoring the font, or null if it was already trimmed.</returns>
+  public static RestoreTicket? TrimDown(this Typeface typeface) => typeface.TrimDownAndRemoveGlyphBuildingDetail();
+  /// <summary>Gets the current outline-retention state.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>The font's trim state.</returns>
   public static TrimMode GetTrimMode(this Typeface typeface) => typeface._typefaceTrimMode;
+  /// <summary>Checks whether glyph building data has been unloaded.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>True when only essential layout data remains.</returns>
   public static bool IsTrimmed(this Typeface typeface) => typeface._typefaceTrimMode == TrimMode.EssentailLayoutInfo;
 
+  /// <summary>Attempts to reload trimmed data from the original font; a header mismatch leaves the font trimmed.</summary>
+  /// <param name="typeface">The trimmed font. Untrimmed fonts are left unchanged.</param>
+  /// <param name="ticket">The ticket returned by the first trim operation.</param>
+  /// <param name="openFontReader">The reader to use for restoration.</param>
+  /// <param name="fontStream">The original readable, seekable font stream, closed by the reader.</param>
   public static void RestoreUp(this Typeface typeface, RestoreTicket ticket, OpenFontReader openFontReader, Stream fontStream)
   {
     if (typeface.IsTrimmed())
@@ -54,6 +72,10 @@ public static partial class TypefaceExtensions
       openFontReader.Read(typeface, ticket, fontStream);
     }
   }
+  /// <summary>Attempts to reload trimmed data using a new reader; a header mismatch leaves the font trimmed.</summary>
+  /// <param name="typeface">The trimmed font. Untrimmed fonts are left unchanged.</param>
+  /// <param name="ticket">The ticket returned by the first trim operation.</param>
+  /// <param name="fontStream">The original readable, seekable font stream, closed by the reader.</param>
   public static void RestoreUp(this Typeface typeface, RestoreTicket ticket, Stream fontStream)
   {
     //use default opent font reader
@@ -74,7 +96,7 @@ partial class Typeface
   internal TrimMode _typefaceTrimMode;
 
 
-  internal RestoreTicket TrimDownAndRemoveGlyphBuildingDetail()
+  internal RestoreTicket? TrimDownAndRemoveGlyphBuildingDetail()
   {
     switch (_typefaceTrimMode)
     {
@@ -83,9 +105,7 @@ partial class Typeface
       case TrimMode.Restored:
       case TrimMode.No:
       {
-        RestoreTicket ticket = new RestoreTicket();
-        ticket.TypefaceName = Name;
-        ticket.Headers = _tblHeaders; //a copy 
+        RestoreTicket ticket = new RestoreTicket(Name, _tblHeaders);
 
         //FROM:GlyphLoadingMode.Full => TO: GlyphLoadingMode.EssentailLayoutInfo 
 

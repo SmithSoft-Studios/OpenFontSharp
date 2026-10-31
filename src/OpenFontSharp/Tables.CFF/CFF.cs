@@ -60,9 +60,9 @@ namespace OpenFontSharp.Tables.CFF
 
     class Cff1FontSet
     {
-        internal string[] _fontNames;
+        internal string[]? _fontNames;
         internal List<Cff1Font> _fonts = new List<Cff1Font>();
-        internal string[] _uniqueStringTable;
+        internal string[]? _uniqueStringTable;
         //
         internal const int N_STD_STRINGS = 390;
         internal static readonly string[] s_StdStrings = new string[] {
@@ -466,7 +466,7 @@ namespace OpenFontSharp.Tables.CFF
         public int FontName;
         public int PrivateDicSize;
         public int PrivateDicOffset;
-        public List<byte[]> LocalSubr;
+        public List<byte[]>? LocalSubr;
         public FontDict(int dictSize, int dictOffset)
         {
             PrivateDicSize = dictSize;
@@ -475,28 +475,44 @@ namespace OpenFontSharp.Tables.CFF
 
     }
 
+    /// <summary>Describes a font in a CFF version 1 font set.</summary>
     public class Cff1Font
     {
-        internal string FontName { get; set; }
-        internal Glyph[] _glyphs;
+        internal string? FontName { get; set; }
+        Glyph[]? _parsedGlyphs;
+        internal Glyph[] _glyphs
+        {
+            get => _parsedGlyphs ?? throw new NullReferenceException("The CFF charstrings have not been parsed.");
+            set => _parsedGlyphs = value;
+        }
 
-        internal List<byte[]> _localSubrRawBufferList;
-        internal List<byte[]> _globalSubrRawBufferList;
+        internal List<byte[]>? _localSubrRawBufferList;
+        internal List<byte[]>? _globalSubrRawBufferList;
 
         internal int _defaultWidthX;
         internal int _nominalWidthX;
-        internal List<FontDict> _cidFontDict;
+        internal List<FontDict>? _cidFontDict;
 
-        public string Version { get; set; } //CFF SID
-        public string Notice { get; set; }//CFF SID
-        public string CopyRight { get; set; }//CFF SID
-        public string FullName { get; set; }//CFF SID        
-        public string FamilyName { get; set; }//CFF SID
-        public string Weight { get; set; }//CFF SID 
+        /// <summary>Gets or sets the version string, or null when the dictionary omits it.</summary>
+        public string? Version { get; set; } //CFF SID
+        /// <summary>Gets or sets the legal notice, or null when the dictionary omits it.</summary>
+        public string? Notice { get; set; }//CFF SID
+        /// <summary>Gets or sets the copyright string, or null when the dictionary omits it.</summary>
+        public string? CopyRight { get; set; }//CFF SID
+        /// <summary>Gets or sets the full font name, or null when the dictionary omits it.</summary>
+        public string? FullName { get; set; }//CFF SID
+        /// <summary>Gets or sets the family name, or null when the dictionary omits it.</summary>
+        public string? FamilyName { get; set; }//CFF SID
+        /// <summary>Gets or sets the weight description, or null when the dictionary omits it.</summary>
+        public string? Weight { get; set; }//CFF SID
+        /// <summary>Gets or sets the underline position in font units.</summary>
         public double UnderlinePosition { get; set; }
+        /// <summary>Gets or sets the underline thickness in font units.</summary>
         public double UnderlineThickness { get; set; }
-        public double[] FontBBox { get; set; }
+        /// <summary>Gets or sets the font bounding box (minimum x, minimum y, maximum x, maximum y), or null if omitted.</summary>
+        public double[]? FontBBox { get; set; }
 #if DEBUG
+        /// <summary>Creates an unpopulated CFF font description.</summary>
         public Cff1Font()
         {
         }
@@ -512,23 +528,34 @@ namespace OpenFontSharp.Tables.CFF
             for (int i = 0; i < j; ++i)
             {
                 Glyph cff1Glyph = _glyphs[i];
-                yield return new GlyphNameMap((ushort)i, cff1Glyph._cff1GlyphData.Name);
+                Cff1GlyphData data = cff1Glyph._cff1GlyphData ?? throw new NullReferenceException("A CFF font must contain CFF glyph data.");
+                yield return new GlyphNameMap((ushort)i, data.Name);
             }
 
         }
     }
+    /// <summary>Stores the name and parsed Type 2 program for a CFF glyph.</summary>
     public class Cff1GlyphData
     {
         internal Cff1GlyphData()
         {
         }
 
-        public string Name { get; internal set; }
+        /// <summary>Gets the charset name, or null when no glyph name was resolved, including unnamed CID glyphs.</summary>
+        public string? Name { get; internal set; }
+        /// <summary>Gets the string identifier or CID recorded in the charset.</summary>
         public ushort SIDName { get; internal set; }
-        internal Type2Instruction[] GlyphInstructions { get; set; }
+        Type2Instruction[]? _glyphInstructions;
+        internal Type2Instruction[] GlyphInstructions
+        {
+            get => _glyphInstructions ?? throw new NullReferenceException("The CFF glyph program has not been parsed.");
+            set => _glyphInstructions = value;
+        }
 
 #if DEBUG
+        /// <summary>Gets the glyph index used in diagnostic output.</summary>
         public ushort dbugGlyphIndex { get; internal set; }
+        /// <inheritdoc/>
         public override string ToString()
         {
             StringBuilder stbuilder = new StringBuilder();
@@ -579,12 +606,30 @@ namespace OpenFontSharp.Tables.CFF
         //from Apache's PDF box/FontBox
         //@author Villu Ruusmann
 
-        BinaryReader _reader;
-
-        Cff1FontSet _cff1FontSet;
-        Cff1Font _currentCff1Font;
-
-        List<CffDataDicEntry> _topDic;
+        BinaryReader? _activeReader;
+        BinaryReader _reader
+        {
+            get => _activeReader ?? throw new NullReferenceException("CFF parsing has not started.");
+            set => _activeReader = value;
+        }
+        Cff1FontSet? _parsedFontSet;
+        Cff1FontSet _cff1FontSet
+        {
+            get => _parsedFontSet ?? throw new NullReferenceException("CFF parsing has not started.");
+            set => _parsedFontSet = value;
+        }
+        Cff1Font? _selectedFont;
+        Cff1Font _currentCff1Font
+        {
+            get => _selectedFont ?? throw new NullReferenceException("The CFF Name INDEX has not selected a font.");
+            set => _selectedFont = value;
+        }
+        List<CffDataDicEntry>? _parsedTopDic;
+        List<CffDataDicEntry> _topDic
+        {
+            get => _parsedTopDic ?? throw new NullReferenceException("The CFF Top DICT has not been parsed.");
+            set => _parsedTopDic = value;
+        }
 
         long _cffStartAt;
 
@@ -658,7 +703,7 @@ namespace OpenFontSharp.Tables.CFF
             //previous or next name in the INDEX to ensure that all
             //appropriate names are matched. 
 
-            CffIndexOffset[] nameIndexElems = ReadIndexDataOffsets();
+            CffIndexOffset[]? nameIndexElems = ReadIndexDataOffsets();
             if (nameIndexElems == null) return;
             //
 
@@ -699,7 +744,7 @@ namespace OpenFontSharp.Tables.CFF
             //the top-level dictionary of a PostScript font.
             //A font is identified by an entry in the Name INDEX and its data
             //is accessed via the corresponding Top DICT
-            CffIndexOffset[] offsets = ReadIndexDataOffsets();
+            CffIndexOffset[] offsets = ReadIndexDataOffsets() ?? throw new NullReferenceException("The CFF Top DICT INDEX is empty.");
 
             //9. Top DICT Data
             //The names of the Top DICT operators shown in 
@@ -728,12 +773,12 @@ namespace OpenFontSharp.Tables.CFF
 
         }
 
-        string[] _uniqueStringTable;
+        string[]? _uniqueStringTable;
         struct CIDFontInfo
         {
-            public string ROS_Register;
-            public string ROS_Ordering;
-            public string ROS_Supplement;
+            public string? ROS_Register;
+            public string? ROS_Ordering;
+            public string? ROS_Supplement;
 
             public double CIDFontVersion;
             public int CIDFountCount;
@@ -788,7 +833,7 @@ namespace OpenFontSharp.Tables.CFF
             //INDEX using a value of(SID – nStdStrings) as the index.
 
 
-            CffIndexOffset[] offsets = ReadIndexDataOffsets();
+            CffIndexOffset[]? offsets = ReadIndexDataOffsets();
             if (offsets == null) return;
             //
 
@@ -822,7 +867,7 @@ namespace OpenFontSharp.Tables.CFF
 
             _cff1FontSet._uniqueStringTable = _uniqueStringTable;
         }
-        string GetSid(int sid)
+        string? GetSid(int sid)
         {
             if (sid <= Cff1FontSet.N_STD_STRINGS)
             {
@@ -832,9 +877,10 @@ namespace OpenFontSharp.Tables.CFF
             }
             else
             {
-                if (sid - Cff1FontSet.N_STD_STRINGS - 1 < _uniqueStringTable.Length)
+                string[] strings = _uniqueStringTable ?? throw new NullReferenceException("The CFF String INDEX is absent.");
+                if (sid - Cff1FontSet.N_STD_STRINGS - 1 < strings.Length)
                 {
-                    return _uniqueStringTable[sid - Cff1FontSet.N_STD_STRINGS - 1];
+                    return strings[sid - Cff1FontSet.N_STD_STRINGS - 1];
                 }
                 else
                 {
@@ -1055,7 +1101,7 @@ namespace OpenFontSharp.Tables.CFF
             int nGlyphs = cff1Glyphs.Length;
             for (int i = 1; i < nGlyphs; ++i)
             {
-                Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData;
+                Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData ?? throw new NullReferenceException("CFF charset entries require CFF glyph data.");
                 d.Name = GetSid(d.SIDName = _reader.ReadUInt16());
             }
         }
@@ -1087,7 +1133,7 @@ namespace OpenFontSharp.Tables.CFF
                 int count = _reader.ReadByte() + 1;//since it not include first elem
                 do
                 {
-                    Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData;
+                    Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData ?? throw new NullReferenceException("CFF charset entries require CFF glyph data.");
                     d.Name = GetSid(d.SIDName = (ushort)sid);
 
                     count--;
@@ -1125,7 +1171,7 @@ namespace OpenFontSharp.Tables.CFF
                 int count = _reader.ReadUInt16() + 1;//since it not include first elem
                 do
                 {
-                    Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData;
+                    Cff1GlyphData d = cff1Glyphs[i]._cff1GlyphData ?? throw new NullReferenceException("CFF charset entries require CFF glyph data.");
                     d.Name = GetSid(d.SIDName = (ushort)sid);
 
                     count--;
@@ -1250,7 +1296,7 @@ namespace OpenFontSharp.Tables.CFF
             if (_cidFontInfo.FDArray == 0) { return; }
             _reader.BaseStream.Position = _cffStartAt + _cidFontInfo.FDArray;
 
-            CffIndexOffset[] offsets = ReadIndexDataOffsets();
+            CffIndexOffset[] offsets = ReadIndexDataOffsets() ?? throw new NullReferenceException("The CID Font DICT INDEX is empty.");
 
             List<FontDict> fontDicts = new List<FontDict>();
             _currentCff1Font._cidFontDict = fontDicts;
@@ -1422,7 +1468,7 @@ namespace OpenFontSharp.Tables.CFF
             //supported by this method. 
 
             _reader.BaseStream.Position = _cffStartAt + _charStringsOffset;
-            CffIndexOffset[] offsets = ReadIndexDataOffsets();
+            CffIndexOffset[] offsets = ReadIndexDataOffsets() ?? throw new NullReferenceException("The CFF CharStrings INDEX is empty.");
 
 
 #if DEBUG
@@ -1475,7 +1521,8 @@ namespace OpenFontSharp.Tables.CFF
                 {
                     //select  proper local private dict 
                     fdRangeProvider.SetCurrentGlyphIndex((ushort)i);
-                    type2Parser.SetCidFontDict(_currentCff1Font._cidFontDict[fdRangeProvider.SelectedFDArray]);
+                    List<FontDict> fontDicts = _currentCff1Font._cidFontDict ?? throw new NullReferenceException("CID charstrings require a parsed Font DICT INDEX.");
+                    type2Parser.SetCidFontDict(fontDicts[fdRangeProvider.SelectedFDArray]);
                 }
 
                 Type2GlyphInstructionList instList = type2Parser.ParseType2CharString(buffer);
@@ -1630,9 +1677,9 @@ namespace OpenFontSharp.Tables.CFF
 
         }
 
-        List<byte[]> ReadSubrBuffer()
+        List<byte[]>? ReadSubrBuffer()
         {
-            CffIndexOffset[] offsets = ReadIndexDataOffsets();
+            CffIndexOffset[]? offsets = ReadIndexDataOffsets();
             if (offsets == null) return null;
             //
             int nsubrs = offsets.Length;
@@ -1734,7 +1781,7 @@ namespace OpenFontSharp.Tables.CFF
             return dicEntry;
         }
 
-        CFFOperator ReadOperator(byte b0)
+        CFFOperator? ReadOperator(byte b0)
         {
             //read operator key
             byte b1 = 0;
@@ -1871,7 +1918,7 @@ namespace OpenFontSharp.Tables.CFF
 
 
 
-        CffIndexOffset[] ReadIndexDataOffsets()
+        CffIndexOffset[]? ReadIndexDataOffsets()
         {
 
             //INDEX Data
@@ -1976,8 +2023,19 @@ namespace OpenFontSharp.Tables.CFF
 
     class CffDataDicEntry
     {
-        public CffOperand[] operands;
-        public CFFOperator _operator;
+        CffOperand[]? _parsedOperands;
+        public CffOperand[] operands
+        {
+            get => _parsedOperands ?? throw new NullReferenceException("The CFF dictionary operands have not been parsed.");
+            set => _parsedOperands = value;
+        }
+        CFFOperator? _parsedOperator;
+        [System.Diagnostics.CodeAnalysis.AllowNull]
+        public CFFOperator _operator
+        {
+            get => _parsedOperator ?? throw new NullReferenceException("The CFF dictionary operator is unknown or unparsed.");
+            set => _parsedOperator = value;
+        }
 
 
 #if DEBUG
@@ -2066,9 +2124,9 @@ namespace OpenFontSharp.Tables.CFF
         }
         public string Name { get; }
 
-        public static CFFOperator GetOperatorByKey(byte b0, byte b1)
+        public static CFFOperator? GetOperatorByKey(byte b0, byte b1)
         {
-            s_registered_Operators.TryGetValue((b1 << 8) | b0, out CFFOperator found);
+            s_registered_Operators.TryGetValue((b1 << 8) | b0, out CFFOperator? found);
             return found;
         }
 

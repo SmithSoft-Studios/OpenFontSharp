@@ -2,6 +2,9 @@
 
 namespace OpenFontSharp.Tables.AdvancedLayout
 {
+    /// <summary>
+    /// Maps OpenType script tags to their parsed script tables.
+    /// </summary>
     public class ScriptList : Dictionary<uint, ScriptTable>
     {
         //https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2
@@ -10,9 +13,20 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         // Language system tables reference features, which are defined in the FeatureList.
         // Each feature table references the lookup data defined in the LookupList that describes how, when, and where to implement the feature.
         private ScriptList() { }
-        public new ScriptTable this[uint tagName] => TryGetValue(tagName, out ScriptTable ret) ? ret : null;
 
+        /// <summary>
+        /// Gets the script table for a tag, or <see langword="null"/> when the tag is absent.
+        /// </summary>
+        /// <param name="tagName">The four-byte OpenType script tag.</param>
+        /// <returns>The matching script table, if present.</returns>
+        public new ScriptTable? this[uint tagName] => TryGetValue(tagName, out ScriptTable? ret) ? ret : null;
 
+        /// <summary>
+        /// Reads a ScriptList table at the specified stream offset.
+        /// </summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="beginAt">The offset of the ScriptList table.</param>
+        /// <returns>The parsed script list.</returns>
         public static ScriptList CreateFrom(BinaryReader reader, long beginAt)
         {
 

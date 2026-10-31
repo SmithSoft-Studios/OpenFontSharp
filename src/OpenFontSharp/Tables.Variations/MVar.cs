@@ -43,8 +43,13 @@ namespace OpenFontSharp.Tables.Variations
         //A value record specifies both the outer and inner portions of the delta-set index.
 
 
-        public ValueRecord[] valueRecords;
-        public ItemVariationStoreTable itemVariationStore;
+        ValueRecord[]? _parsedValueRecords;
+        public ValueRecord[] valueRecords
+        {
+            get => _parsedValueRecords ?? throw new NullReferenceException("The MVAR value records have not been parsed.");
+            set => _parsedValueRecords = value;
+        }
+        public ItemVariationStoreTable? itemVariationStore;
 
         public MVar()
         {
@@ -175,7 +180,7 @@ namespace OpenFontSharp.Tables.Variations
         {
 
             static Dictionary<string, ValueTagInfo> s_registerTags = new Dictionary<string, ValueTagInfo>();
-            public static bool TryGetValueTagInfo(string tag, out ValueTagInfo valueTagInfo)
+            public static bool TryGetValueTagInfo(string tag, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out ValueTagInfo? valueTagInfo)
             {
                 return s_registerTags.TryGetValue(tag, out valueTagInfo);
             }

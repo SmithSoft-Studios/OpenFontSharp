@@ -7,16 +7,35 @@ namespace OpenFontSharp.TrueTypeInterperter
 {
 
 
+    /// <summary>Applies TrueType bytecode hinting to glyph outlines at a selected pixel size.</summary>
     public class TrueTypeInterpreter
     {
-        Typeface _currentTypeFace;
-        SharpFontInterpreter _interpreter;
+        Typeface? _assignedTypeface;
+        Typeface _currentTypeFace
+        {
+            get => _assignedTypeface ?? throw new NullReferenceException("Set a typeface before hinting glyphs.");
+            set => _assignedTypeface = value;
+        }
+        SharpFontInterpreter? _initializedInterpreter;
+        SharpFontInterpreter _interpreter
+        {
+            get => _initializedInterpreter ?? throw new NullReferenceException("Set a typeface before hinting glyphs.");
+            set => _initializedInterpreter = value;
+        }
+        /// <summary>Gets or sets the typeface used for hinting. The getter returns null before initialization.</summary>
+        /// <exception cref="NullReferenceException">The assigned typeface is null or lacks its required maximum profile.</exception>
+        /// <exception cref="InvalidFontException">The assigned typeface's initialization bytecode is invalid.</exception>
+        [System.Diagnostics.CodeAnalysis.MaybeNull]
         public Typeface Typeface
         {
-            get => _currentTypeFace;
+            get => _assignedTypeface;
             set => SetTypeFace(value);
         }
 
+        /// <summary>Selects a typeface and initializes its optional font program.</summary>
+        /// <param name="typeface">The typeface supplying glyphs and TrueType interpreter limits.</param>
+        /// <exception cref="NullReferenceException">The typeface is null or lacks its required maximum profile.</exception>
+        /// <exception cref="InvalidFontException">The typeface's initialization bytecode is invalid.</exception>
         public void SetTypeFace(Typeface typeface)
         {
             //still preserve this for compat with others,
@@ -38,6 +57,12 @@ namespace OpenFontSharp.TrueTypeInterperter
         }
 
 
+        /// <summary>Hints a TrueType outline from the selected typeface.</summary>
+        /// <param name="glyphIndex">The glyph index in the selected typeface.</param>
+        /// <param name="glyphSizeInPixel">The target glyph size in pixels.</param>
+        /// <returns>A scaled, hinted copy of the outline with four phantom points appended.</returns>
+        /// <exception cref="NullReferenceException">No typeface is selected or the glyph has no TrueType outline.</exception>
+        /// <exception cref="InvalidFontException">A hinting program contains invalid bytecode or invalid interpreter state.</exception>
         public GlyphPointF[] HintGlyph(ushort glyphIndex, float glyphSizeInPixel)
         {
 
@@ -51,12 +76,24 @@ namespace OpenFontSharp.TrueTypeInterperter
                 hFrontSideBearing,
                 glyph.MinX,
                 glyph.MaxY,
-                glyph.GlyphPoints,
-                glyph.EndPoints,
+                glyph.GlyphPoints ?? throw new NullReferenceException("TrueType hinting requires outline points."),
+                glyph.EndPoints ?? throw new NullReferenceException("TrueType hinting requires contour endpoints."),
                 glyph.GlyphInstructions,
                 glyphSizeInPixel);
 
         }
+        /// <summary>Scales and hints an outline using the selected typeface's bytecode environment.</summary>
+        /// <param name="horizontalAdv">The horizontal advance in font units.</param>
+        /// <param name="hFrontSideBearing">The left side bearing in font units.</param>
+        /// <param name="minX">The outline's minimum x coordinate.</param>
+        /// <param name="maxY">The outline's maximum y coordinate.</param>
+        /// <param name="glyphPoints">The unscaled outline points; the input array is not modified.</param>
+        /// <param name="contourEndPoints">The index of the final point in each contour.</param>
+        /// <param name="instructions">The glyph bytecode, or null when the glyph has no hint program.</param>
+        /// <param name="glyphSizeInPixel">The target glyph size in pixels.</param>
+        /// <returns>A scaled, hinted copy of the outline with four phantom points appended.</returns>
+        /// <exception cref="NullReferenceException">No typeface is selected or required outline data is missing.</exception>
+        /// <exception cref="InvalidFontException">A hinting program contains invalid bytecode or invalid interpreter state.</exception>
         public GlyphPointF[] HintGlyph(
             int horizontalAdv,
             int hFrontSideBearing,
@@ -64,7 +101,7 @@ namespace OpenFontSharp.TrueTypeInterperter
             int maxY,
             GlyphPointF[] glyphPoints,
             ushort[] contourEndPoints,
-            byte[] instructions,
+            byte[]? instructions,
             float glyphSizeInPixel)
         {
 
@@ -126,6 +163,7 @@ namespace OpenFontSharp.TrueTypeInterperter
 
         }
 
+        /// <summary>Gets or sets whether horizontal coordinates are temporarily expanded to favor vertical hinting.</summary>
         public bool UseVerticalHinting { get; set; }
 
         static void ApplyScaleOnlyOnXAxis(GlyphPointF[] glyphPoints, float xscale)
@@ -151,9 +189,19 @@ namespace OpenFontSharp.TrueTypeInterperter
         ExecutionStack _stack;
         InstructionStream[] _functions;
         InstructionStream[] _instructionDefs;
-        float[] _controlValueTable;
+        float[]? _loadedControlValues;
+        float[] _controlValueTable
+        {
+            get => _loadedControlValues ?? throw new NullReferenceException("The font has no initialized control value table.");
+            set => _loadedControlValues = value;
+        }
         int[] _storage;
-        ushort[] _contours;
+        ushort[]? _activeContours;
+        ushort[] _contours
+        {
+            get => _activeContours ?? throw new NullReferenceException("No glyph contours are being hinted.");
+            set => _activeContours = value;
+        }
         float _scale;
         int _ppem;
         int _callStackSize;
@@ -180,12 +228,12 @@ namespace OpenFontSharp.TrueTypeInterperter
             Execute(new InstructionStream(instructions), false, true);
         }
 
-        public void SetControlValueTable(int[] cvt, float scale, float ppem, byte[] cvProgram)
+        public void SetControlValueTable(int[]? cvt, float scale, float ppem, byte[]? cvProgram)
         {
             if (_scale == scale || cvt == null)
                 return;
 
-            if (_controlValueTable == null)
+            if (_loadedControlValues == null)
                 _controlValueTable = new float[cvt.Length];
             //copy cvt and apply scale
             for (int i = cvt.Length - 1; i >= 0; --i)
@@ -217,7 +265,7 @@ namespace OpenFontSharp.TrueTypeInterperter
             }
         }
 
-        public void HintGlyph(GlyphPointF[] glyphPoints, ushort[] contours, byte[] instructions)
+        public void HintGlyph(GlyphPointF[] glyphPoints, ushort[] contours, byte[]? instructions)
         {
             if (instructions == null || instructions.Length == 0)
                 return;

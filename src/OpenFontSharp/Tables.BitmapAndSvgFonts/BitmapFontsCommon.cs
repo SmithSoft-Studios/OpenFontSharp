@@ -57,7 +57,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
 
         //-----
         //reconstructed 
-        public IndexSubTableBase[] indexSubTables;
+        IndexSubTableBase?[]? _parsedIndexSubTables;
+        public IndexSubTableBase?[] indexSubTables
+        {
+            get => _parsedIndexSubTables ?? throw new NullReferenceException("The bitmap index subtables have not been parsed.");
+            set => _parsedIndexSubTables = value;
+        }
         //
         static void ReadSbitLineMetrics(BinaryReader reader, ref SbitLineMetrics lineMetric)
         {
@@ -203,7 +208,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         public ushort firstGlyphIndex;
         public ushort lastGlyphIndex;
 
-        public static IndexSubTableBase CreateFrom(BitmapSizeTable bmpSizeTable, BinaryReader reader)
+        public static IndexSubTableBase? CreateFrom(BitmapSizeTable bmpSizeTable, BinaryReader reader)
         {
             //read IndexSubHeader
             //IndexSubHeader
@@ -367,7 +372,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     class IndexSubTable1 : IndexSubTableBase
     {
         public override int SubTypeNo => 1;
-        public uint[] offsetArray;
+        uint[]? _parsedOffsets;
+        public uint[] offsetArray
+        {
+            get => _parsedOffsets ?? throw new NullReferenceException("The bitmap offsets have not been parsed.");
+            set => _parsedOffsets = value;
+        }
 
         public override void BuildGlyphList(List<Glyph> glyphList)
         {
@@ -403,7 +413,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     class IndexSubTable3 : IndexSubTableBase
     {
         public override int SubTypeNo => 3;
-        public ushort[] offsetArray;
+        ushort[]? _parsedOffsets;
+        public ushort[] offsetArray
+        {
+            get => _parsedOffsets ?? throw new NullReferenceException("The bitmap offsets have not been parsed.");
+            set => _parsedOffsets = value;
+        }
         public override void BuildGlyphList(List<Glyph> glyphList)
         {
             int n = 0;
@@ -419,7 +434,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     class IndexSubTable4 : IndexSubTableBase
     {
         public override int SubTypeNo => 4;
-        public GlyphIdOffsetPair[] glyphArray;
+        GlyphIdOffsetPair[]? _parsedGlyphs;
+        public GlyphIdOffsetPair[] glyphArray
+        {
+            get => _parsedGlyphs ?? throw new NullReferenceException("The bitmap glyph offsets have not been parsed.");
+            set => _parsedGlyphs = value;
+        }
         public override void BuildGlyphList(List<Glyph> glyphList)
         {
             for (int i = 0; i < glyphArray.Length; ++i)
@@ -438,7 +458,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         public uint imageSize;
         public BigGlyphMetrics BigGlyphMetrics = new BigGlyphMetrics();
 
-        public ushort[] glyphIdArray;
+        ushort[]? _parsedGlyphIds;
+        public ushort[] glyphIdArray
+        {
+            get => _parsedGlyphIds ?? throw new NullReferenceException("The bitmap glyph identifiers have not been parsed.");
+            set => _parsedGlyphIds = value;
+        }
         public override void BuildGlyphList(List<Glyph> glyphList)
         {
             uint incrementalOffset = 0;//TODO: review this
@@ -708,7 +733,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
 
         public SmallGlyphMetrics smallMetrics;
         public byte pad;
-        public EbdtComponent[] components;
+        public EbdtComponent[]? components;
         //Format 8: small metrics, component data
         //Type              Name            Description
         //SmallGlyphMetrics smallMetrics    Metrics information for the glyph
@@ -733,7 +758,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     {
         public override int FormatNumber => 9;
         public BigGlyphMetrics bigMetrics;
-        public EbdtComponent[] components;
+        public EbdtComponent[]? components;
 
         //Format 9: big metrics, component data
         //Type              Name            Description

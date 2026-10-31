@@ -10,6 +10,7 @@ using OpenFontSharp.Tables.CFF;
 namespace OpenFontSharp
 {
 
+    /// <summary>A glyph's metrics and optional TrueType, CFF, bitmap, or mathematical data.</summary>
     public class Glyph
     {
 
@@ -23,7 +24,7 @@ namespace OpenFontSharp
             GlyphPointF[] glyphPoints,
             ushort[] contourEndPoints,
             Bounds bounds,
-            byte[] glyphInstructions,
+            byte[]? glyphInstructions,
             ushort index)
         {
             //create from TTF 
@@ -43,28 +44,45 @@ namespace OpenFontSharp
 
         }
 
+        /// <summary>Gets the glyph ID within its typeface.</summary>
         public ushort GlyphIndex { get; }                       //FOUND in all mode
+        /// <summary>Gets the outline bounding box in font design units.</summary>
         public Bounds Bounds { get; internal set; }             //FOUND in all mode
+        /// <summary>Gets the original advance width; use <see cref="HasOriginalAdvancedWidth"/> to check availability.</summary>
         public ushort OriginalAdvanceWidth { get; private set; } //FOUND in all mode
         internal ushort BitmapGlyphAdvanceWidth { get; set; }    //FOUND in all mode
 
         //TrueTypeFont
-        public ushort[] EndPoints { get; private set; }         //NULL in  _onlyLayoutEssMode         
-        public GlyphPointF[] GlyphPoints { get; private set; }  //NULL in  _onlyLayoutEssMode         
-        internal byte[] GlyphInstructions { get; set; }         //NULL in _onlyLayoutEssMode 
+        /// <summary>Gets TrueType contour end-point indices, or null for other formats or trimmed glyphs.</summary>
+        public ushort[]? EndPoints { get; private set; }
+        /// <summary>Gets TrueType outline points, or null for other formats or trimmed glyphs.</summary>
+        public GlyphPointF[]? GlyphPoints { get; private set; }
+        internal byte[]? GlyphInstructions { get; set; }
+        /// <summary>Gets whether a TrueType instruction buffer is loaded, including an empty buffer.</summary>
         public bool HasGlyphInstructions => this.GlyphInstructions != null; //FALSE  n _onlyLayoutEssMode 
 
         //
+        /// <summary>Gets the glyph's GDEF classification, or zero when unclassified.</summary>
         public GlyphClassKind GlyphClass { get; internal set; } //FOUND in all mode
         internal ushort MarkClassDef { get; set; }              //FOUND in all mode
 
+        /// <summary>Gets the minimum outline X coordinate in font design units.</summary>
         public short MinX => Bounds.XMin;
+        /// <summary>Gets the maximum outline X coordinate in font design units.</summary>
         public short MaxX => Bounds.XMax;
+        /// <summary>Gets the minimum outline Y coordinate in font design units.</summary>
         public short MinY => Bounds.YMin;
+        /// <summary>Gets the maximum outline Y coordinate in font design units.</summary>
         public short MaxY => Bounds.YMax;
 
 
+        /// <summary>Checks whether an original advance width was explicitly assigned.</summary>
+        /// <param name="glyph">The glyph to inspect.</param>
+        /// <returns>True when the width is available, even if it is zero.</returns>
         public static bool HasOriginalAdvancedWidth(Glyph glyph) => glyph._hasOrgAdvWidth;
+        /// <summary>Stores an original advance width and marks it as available.</summary>
+        /// <param name="glyph">The glyph to update.</param>
+        /// <param name="advW">The advance width in font design units.</param>
         public static void SetOriginalAdvancedWidth(Glyph glyph, ushort advW)
         {
             glyph.OriginalAdvanceWidth = advW;
@@ -81,7 +99,7 @@ namespace OpenFontSharp
         {
 
             //change data on current glyph
-            GlyphPointF[] glyphPoints = glyph.GlyphPoints;
+            GlyphPointF[] glyphPoints = glyph.GlyphPoints!;
             for (int i = glyphPoints.Length - 1; i >= 0; --i)
             {
                 glyphPoints[i] = glyphPoints[i].Offset(dx, dy);
@@ -116,7 +134,7 @@ namespace OpenFontSharp
             float new_xmax = 0;
             float new_ymax = 0;
 
-            GlyphPointF[] glyphPoints = glyph.GlyphPoints;
+            GlyphPointF[] glyphPoints = glyph.GlyphPoints!;
             for (int i = 0; i < glyphPoints.Length; ++i)
             {
                 GlyphPointF p = glyphPoints[i];
@@ -167,8 +185,8 @@ namespace OpenFontSharp
         {
             //for true type instruction glyph***
             return new Glyph(
-                Utils.CloneArray(original.GlyphPoints),
-                Utils.CloneArray(original.EndPoints),
+                Utils.CloneArray(original.GlyphPoints!),
+                Utils.CloneArray(original.EndPoints!),
                 original.Bounds,
                 original.GlyphInstructions != null ? Utils.CloneArray(original.GlyphInstructions) : null,
                 newGlyphIndex);
@@ -181,7 +199,7 @@ namespace OpenFontSharp
         /// <param name="dest"></param>
         internal static void TtfAppendGlyph(Glyph dest, Glyph src)
         {
-            int org_dest_len = dest.EndPoints.Length;
+            int org_dest_len = dest.EndPoints!.Length;
 #if DEBUG
             int src_contour_count = src.EndPoints.Length;
 #endif
@@ -189,16 +207,16 @@ namespace OpenFontSharp
             {
                 //org is empty glyph
 
-                dest.GlyphPoints = Utils.ConcatArray(dest.GlyphPoints, src.GlyphPoints);
-                dest.EndPoints = Utils.ConcatArray(dest.EndPoints, src.EndPoints);
+                dest.GlyphPoints = Utils.ConcatArray(dest.GlyphPoints!, src.GlyphPoints!);
+                dest.EndPoints = Utils.ConcatArray(dest.EndPoints, src.EndPoints!);
 
             }
             else
             {
                 ushort org_last_point = (ushort)(dest.EndPoints[org_dest_len - 1] + 1); //since start at 0 
 
-                dest.GlyphPoints = Utils.ConcatArray(dest.GlyphPoints, src.GlyphPoints);
-                dest.EndPoints = Utils.ConcatArray(dest.EndPoints, src.EndPoints);
+                dest.GlyphPoints = Utils.ConcatArray(dest.GlyphPoints!, src.GlyphPoints!);
+                dest.EndPoints = Utils.ConcatArray(dest.EndPoints, src.EndPoints!);
                 //offset latest append contour  end points
                 int newlen = dest.EndPoints.Length;
                 for (int i = org_dest_len; i < newlen; ++i)
@@ -250,7 +268,7 @@ namespace OpenFontSharp
 
         //cff  
 
-        internal readonly Cff1GlyphData _cff1GlyphData;             //NULL in  _onlyLayoutEssMode 
+        internal readonly Cff1GlyphData? _cff1GlyphData;
 
         internal Glyph(Cff1GlyphData cff1Glyph, ushort glyphIndex)
         {
@@ -263,11 +281,15 @@ namespace OpenFontSharp
             this.GlyphIndex = glyphIndex;
         }
 
+        /// <summary>Gets whether CFF outline data is currently loaded.</summary>
         public bool IsCffGlyph => _cff1GlyphData != null;
-        public Cff1GlyphData GetCff1GlyphData() => _cff1GlyphData;
+        /// <summary>Gets CFF outline data for this glyph.</summary>
+        /// <returns>The CFF data, or null for other formats or trimmed glyphs.</returns>
+        public Cff1GlyphData? GetCff1GlyphData() => _cff1GlyphData;
 
         //TODO: review here again
-        public MathGlyphInfo MathGlyphInfo { get; internal set; }  //FOUND in all mode (if font has this data)
+        /// <summary>Gets mathematical layout data, or null when the font has no such data.</summary>
+        public MathGlyphInfo? MathGlyphInfo { get; internal set; }  //FOUND in all mode (if font has this data)
 
         uint _streamLen;            //FOUND in all mode (if font has this data)
         ushort _imgFormat;          //FOUND in all mode (if font has this data)
@@ -326,6 +348,7 @@ namespace OpenFontSharp
 
 
     //https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
+    /// <summary>Glyph classifications defined by the OpenType GDEF table.</summary>
     public enum GlyphClassKind : byte
     {
         //1 	Base glyph (single character, spacing glyph)
@@ -342,6 +365,7 @@ namespace OpenFontSharp
         //or outputting the component glyphs in the desired sequence. 
         //Component glyphs are not used in defining any GSUB or GPOS formats.
         //
+        /// <summary>No classification was assigned by the font.</summary>
         Zero = 0,//class0, classZero
         /// <summary>
         /// Base glyph (single character, spacing glyph)
