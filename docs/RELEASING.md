@@ -7,7 +7,9 @@ OpenFontSharp ships as one NuGet package. TrinePDF depends on it, so release Ope
 1. Move the `[Unreleased]` entries in `CHANGELOG.md` under a new version heading.
 2. Set `<Version>` in `src/OpenFontSharp/OpenFontSharp.csproj` (follow [SemVer](https://semver.org): new public API bumps the minor, a breaking change the major).
 3. Merge that change to `main` through a pull request.
-4. Tag and push: `git tag v1.1.0 && git push origin v1.1.0`.
+4. After the merge, switch to `main` and pull its latest changes (`git switch main`, then `git pull --ff-only origin main`).
+5. Confirm the project version is `1.2.0`, then create an annotated tag: `git tag -a v1.2.0 -m "OpenFontSharp 1.2.0"`.
+6. Push the tag: `git push origin v1.2.0`. This starts the publishing workflow; do not push the tag while only preparing the release.
 
 The release workflow refuses to publish unless the tag equals `<Version>`, the tests pass and `.github/scripts/check-packages.sh` can install the package into a clean project and subset a font with it. The package check also requires the XML API documentation under `lib/net10.0`. Tags containing `-` become GitHub pre-releases. A failed release can be re-run; a version already on nuget.org is skipped.
 
