@@ -19,8 +19,6 @@ namespace OpenFontSharp.Subsetting;
 /// </remarks>
 public static class FontSubsetter
 {
-    private static readonly Random s_random = new();
-
     /// <summary>
     /// Subsets a font from its raw bytes, retaining only the specified glyphs.
     /// Returns the font unchanged when it cannot be subset safely.
@@ -102,7 +100,7 @@ public static class FontSubsetter
     {
         var chars = new char[7];
         for (int i = 0; i < 6; i++)
-            chars[i] = (char)('A' + s_random.Next(26));
+            chars[i] = (char)('A' + Random.Shared.Next(26));
         chars[6] = '+';
         return new string(chars);
     }
