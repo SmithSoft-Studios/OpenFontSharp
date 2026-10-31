@@ -71,25 +71,35 @@ namespace OpenFontSharp.Tables
     //or map correctly to these codepoints from other codepages and character sets. 
     ////////////////////////////////////////////////////////////////////////
 
+    /// <summary>
+    /// Maps character codes to glyph indices using the font's character map subtables.
+    /// </summary>
     public class Cmap : TableEntry
     {
         //https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
 
+        /// <summary>
+        /// The OpenType tag identifying the character-to-glyph mapping table.
+        /// </summary>
         public const string _N = "cmap";
+
+        /// <inheritdoc />
         public override string Name => _N;
 
-        CharacterMap[] _charMaps = null;
-        List<CharMapFormat14> _charMap14List;
+        CharacterMap[]? _charMaps;
+        List<CharMapFormat14>? _charMap14List;
         Dictionary<int, ushort> _codepointToGlyphs = new Dictionary<int, ushort>();
 
-
         /// <summary>
-        /// find glyph index from given codepoint(s)
+        /// Finds the glyph index for a code point, optionally considering a following variation selector.
         /// </summary>
-        /// <param name="codepoint"></param>
-        /// <param name="nextCodepoint"></param>
-        /// <returns>glyph index</returns>
-
+        /// <param name="codepoint">The Unicode code point to map.</param>
+        /// <param name="nextCodepoint">A following code point, or zero when there is no variation selector.</param>
+        /// <param name="skipNextCodepoint">
+        /// Receives <see langword="true"/> when the following code point was consumed as a variation selector.
+        /// </param>
+        /// <returns>The mapped glyph index, or glyph index zero when the code point is not mapped.</returns>
+        /// <exception cref="NullReferenceException">The table has not been loaded.</exception>
         public ushort GetGlyphIndex(int codepoint, int nextCodepoint, out bool skipNextCodepoint)
         {
             // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
@@ -99,9 +109,11 @@ namespace OpenFontSharp.Tables
 
             if (!_codepointToGlyphs.TryGetValue(codepoint, out ushort found))
             {
-                for (int i = 0; i < _charMaps.Length; ++i)
+                CharacterMap[] charMaps = _charMaps
+                    ?? throw new NullReferenceException("The character map table has not been loaded.");
+                for (int i = 0; i < charMaps.Length; ++i)
                 {
-                    CharacterMap cmap = _charMaps[i];
+                    CharacterMap cmap = charMaps[i];
 
 
 
@@ -141,6 +153,10 @@ namespace OpenFontSharp.Tables
             return found;
         }
 
+        /// <summary>
+        /// Reads all character map subtables and their platform associations.
+        /// </summary>
+        /// <param name="input">The stream positioned at the start of the table.</param>
         protected override void ReadContentFrom(BinaryReader input)
         {
             //https://www.microsoft.com/typography/otspec/cmap.htm
@@ -406,22 +422,39 @@ namespace OpenFontSharp.Tables
             }
         }
 
+        /// <summary>
+        /// Appends the Unicode code points represented by all character map subtables.
+        /// </summary>
+        /// <param name="unicodes">The list to receive the code points.</param>
+        /// <exception cref="NullReferenceException">The table has not been loaded.</exception>
         public void CollectUnicode(List<uint> unicodes)
         {
-            for (int i = 0; i < _charMaps.Length; ++i)
+            CharacterMap[] charMaps = _charMaps
+                ?? throw new NullReferenceException("The character map table has not been loaded.");
+            for (int i = 0; i < charMaps.Length; ++i)
             {
-                _charMaps[i].CollectUnicodeChars(unicodes);
+                charMaps[i].CollectUnicodeChars(unicodes);
             }
         }
+
+        /// <summary>
+        /// Appends code points and their glyph indices from the selected platform's subtables.
+        /// </summary>
+        /// <param name="platform">The platform identifier to include, or a negative value to include every platform.</param>
+        /// <param name="unicodes">The list to receive the code points.</param>
+        /// <param name="glyphIndexList">The list to receive the corresponding glyph indices.</param>
+        /// <exception cref="NullReferenceException">The table has not been loaded.</exception>
         public void CollectUnicode(int platform, List<uint> unicodes, List<ushort> glyphIndexList)
         {
-            if (_charMaps.Length == 1)
+            CharacterMap[] charMaps = _charMaps
+                ?? throw new NullReferenceException("The character map table has not been loaded.");
+            if (charMaps.Length == 1)
             {
 
             }
-            for (int i = 0; i < _charMaps.Length; ++i)
+            for (int i = 0; i < charMaps.Length; ++i)
             {
-                CharacterMap cmap = _charMaps[i];
+                CharacterMap cmap = charMaps[i];
                 if (platform < 0)
                 {
                     cmap.CollectUnicodeChars(unicodes, glyphIndexList);

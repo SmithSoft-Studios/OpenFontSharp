@@ -19,7 +19,12 @@ namespace OpenFontSharp.Tables.Variations
     class ItemVariationStoreTable
     {
 
-        public VariationRegion[] variationRegions;
+        VariationRegion[]? _parsedRegions;
+        public VariationRegion[] variationRegions
+        {
+            get => _parsedRegions ?? throw new NullReferenceException("The variation regions have not been parsed.");
+            set => _parsedRegions = value;
+        }
         public void ReadContentFrom(BinaryReader reader)
         {
 
@@ -51,7 +56,12 @@ namespace OpenFontSharp.Tables.Variations
         //RegionAxisCoordinates   regionAxes[axisCount]   Array of region axis coordinates records, in the order of axes given in the 'fvar' table.
         //Each RegionAxisCoordinates record provides coordinate values for a region along a single axis:
 
-        public RegionAxisCoordinate[] regionAxes;
+        RegionAxisCoordinate[]? _parsedAxes;
+        public RegionAxisCoordinate[] regionAxes
+        {
+            get => _parsedAxes ?? throw new NullReferenceException("The region axes have not been parsed.");
+            set => _parsedAxes = value;
+        }
         public void ReadContent(BinaryReader reader, int axisCount)
         {
             regionAxes = new RegionAxisCoordinate[axisCount];

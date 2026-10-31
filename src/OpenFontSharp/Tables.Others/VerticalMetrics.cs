@@ -57,7 +57,7 @@ namespace OpenFontSharp.Tables.Others
         // int16    topSideBearing[]    The top sidebearing of the glyph. Signed integer in FUnits.
 
         ushort _numOfLongVerMetrics;
-        AdvanceHeightAndTopSideBearing[] _advHeightAndTopSideBearings;
+        AdvanceHeightAndTopSideBearing[]? _advHeightAndTopSideBearings;
         public VerticalMetrics(ushort numOfLongVerMetrics)
         {
             _numOfLongVerMetrics = numOfLongVerMetrics;

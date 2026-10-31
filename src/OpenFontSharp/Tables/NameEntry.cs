@@ -7,11 +7,23 @@ namespace OpenFontSharp.Tables
 {
     //https://docs.microsoft.com/en-us/typography/opentype/spec/name
 
+    /// <summary>
+    /// Contains the font's localized and canonical naming records.
+    /// </summary>
     public class NameEntry : TableEntry
     {
+        /// <summary>
+        /// The OpenType tag identifying the naming table.
+        /// </summary>
         public const string _N = "name";
+
+        /// <inheritdoc />
         public override string Name => _N;
         //
+        /// <summary>
+        /// Reads the name records from the font and assigns the supported name identifiers.
+        /// </summary>
+        /// <param name="reader">The stream positioned at the start of the table.</param>
         protected override void ReadContentFrom(BinaryReader reader)
         {
 
@@ -98,7 +110,10 @@ namespace OpenFontSharp.Tables
         /// 
         /// Font Family name is used in combination with Font Subfamily name (name ID 2)...
         /// </summary>
-        public string FontName { get; private set; }
+        /// <summary>
+        /// Gets the family name (name ID 1), or <see langword="null"/> when the font does not provide it.
+        /// </summary>
+        public string? FontName { get; private set; }
         /// <summary>
         ///  	Font Subfamily name. The Font Subfamily name distinguishes the fonts in a group with the 
         ///  	same Font Family name (name ID 1).
@@ -107,16 +122,27 @@ namespace OpenFontSharp.Tables
         ///      A font with no distinctive weight or style (e.g. medium weight, not italic, and OS/2.fsSelection bit 6 set) 
         ///      should use the string “Regular” as the Font Subfamily name (for English language). 
         /// </summary>
-        public string FontSubFamily { get; private set; }
-        public string UniqueFontIden { get; private set; }
+        /// <summary>
+        /// Gets the subfamily name (name ID 2), or <see langword="null"/> when the font does not provide it.
+        /// </summary>
+        public string? FontSubFamily { get; private set; }
+
+        /// <summary>
+        /// Gets the unique font identifier (name ID 3), or <see langword="null"/> when it is absent.
+        /// </summary>
+        public string? UniqueFontIden { get; private set; }
         /// <summary>
         /// Full font name that reflects all family and relevant subfamily descriptors. 
         /// The full font name is generally a combination of name IDs 1 and 2, or 
         /// of name IDs 16 and 17, or a similar human-readable variant. 
         /// </summary>
-        public string FullFontName { get; set; }
+        /// <remarks>This value is <see langword="null"/> when the name record is absent.</remarks>
+        public string? FullFontName { get; set; }
 
-        public string VersionString { get; set; }
+        /// <summary>
+        /// Gets or sets the version string (name ID 5), or <see langword="null"/> when it is absent.
+        /// </summary>
+        public string? VersionString { get; set; }
 
         /// <summary>
         /// PostScript name for the font; Name ID 6 specifies a string which is used to invoke a PostScript language font that corresponds to this OpenType font.
@@ -127,11 +153,23 @@ namespace OpenFontSharp.Tables
         ///the same CFF may be shared among multiple font components in a Font Collection.
         ///...
         /// </summary>
-        public string PostScriptName { get; set; }
-        public string PostScriptCID_FindfontName { get; set; }
+        /// <remarks>This value is <see langword="null"/> when the name record is absent.</remarks>
+        public string? PostScriptName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the PostScript CID findfont name (name ID 20), if present.
+        /// </summary>
+        public string? PostScriptCID_FindfontName { get; set; }
         //
-        public string TypographicFamilyName { get; set; }
-        public string TypographyicSubfamilyName { get; set; }
+        /// <summary>
+        /// Gets or sets the typographic family name (name ID 16), if present.
+        /// </summary>
+        public string? TypographicFamilyName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the typographic subfamily name (name ID 17), if present.
+        /// </summary>
+        public string? TypographyicSubfamilyName { get; set; }
 
 
         struct TT_NAME_RECORD

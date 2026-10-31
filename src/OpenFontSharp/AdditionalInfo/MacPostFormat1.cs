@@ -7,18 +7,24 @@ namespace OpenFontSharp.AdditionalInfo
     {
 
 
-        static string[] s_stdMacGlyphNames;
+        static string[]? s_stdMacGlyphNames;
 
+        /// <summary>
+        /// Gets the standard Macintosh PostScript glyph names indexed by their standard glyph IDs.
+        /// </summary>
+        /// <returns>The shared array of standard Macintosh glyph names.</returns>
         public static string[] GetStdMacGlyphNames()
         {
-            if (s_stdMacGlyphNames == null)
+            string[]? glyphNames = s_stdMacGlyphNames;
+            if (glyphNames == null)
             {
-                s_stdMacGlyphNames = new string[260];
+                glyphNames = new string[260];
+                s_stdMacGlyphNames = glyphNames;
                 using (StringReader strReader = new StringReader(orgGlyphNames))
                 {
                     string[] seps = new string[] { " " };
 
-                    string line = strReader.ReadLine();
+                    string? line = strReader.ReadLine();
 
                     while (line != null)
                     {
@@ -39,7 +45,7 @@ namespace OpenFontSharp.AdditionalInfo
 
                                 }
 #endif
-                                s_stdMacGlyphNames[index] = key_value[1].Trim();
+                                glyphNames[index] = key_value[1].Trim();
                             }
                             else
                             {
@@ -51,7 +57,7 @@ namespace OpenFontSharp.AdditionalInfo
                     }
                 }
             }
-            return s_stdMacGlyphNames;
+            return glyphNames;
         }
 
 

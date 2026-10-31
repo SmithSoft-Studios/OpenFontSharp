@@ -27,8 +27,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
     class AttachmentListTable
     {
-        AttachPoint[] _attachPoints;
-        public CoverageTable CoverageTable { get; private set; }
+        AttachPoint[] _attachPoints = Array.Empty<AttachPoint>();
+        public CoverageTable? CoverageTable { get; private set; }
         public static AttachmentListTable CreateFrom(BinaryReader reader, long beginAt)
         {
             AttachmentListTable attachmentListTable = new AttachmentListTable();

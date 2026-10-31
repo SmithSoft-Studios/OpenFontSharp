@@ -32,7 +32,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         //The numSizes in the eblcHeader indicates the number of bitmapSizeTables in the array.
         //Each strike is defined by one bitmapSizeTable.
 
-        BitmapSizeTable[] _bmpSizeTables;
+        BitmapSizeTable[]? _parsedSizeTables;
+        BitmapSizeTable[] _bmpSizeTables
+        {
+            get => _parsedSizeTables ?? throw new NullReferenceException("The EBLC bitmap size tables have not been parsed.");
+            set => _parsedSizeTables = value;
+        }
         protected override void ReadContentFrom(BinaryReader reader)
         {
             // load each strike table
@@ -93,7 +98,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                 }
 
                 //---
-                IndexSubTableBase[] subTables = new IndexSubTableBase[numberofIndexSubTables];
+                IndexSubTableBase?[] subTables = new IndexSubTableBase?[numberofIndexSubTables];
                 bmpSizeTable.indexSubTables = subTables;
                 for (uint i = 0; i < numberofIndexSubTables; ++i)
                 {

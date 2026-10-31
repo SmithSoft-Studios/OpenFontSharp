@@ -32,6 +32,10 @@ public static class TextMeasurer
     /// <summary>
     /// Measures text width using a FontInfo record.
     /// </summary>
+    /// <remarks>
+    /// This legacy overload indexes widths by UTF-16 character value, not by cmap glyph ID.
+    /// Widths returned by FontLoader are glyph-indexed; use the Typeface overload for loaded fonts.
+    /// </remarks>
     /// <param name="fontInfo">Font metadata with glyph widths.</param>
     /// <param name="text">The text to measure.</param>
     /// <param name="fontSize">Font size (typically in points).</param>

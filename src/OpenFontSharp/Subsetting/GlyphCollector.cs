@@ -1,15 +1,14 @@
 namespace OpenFontSharp.Subsetting;
 
 /// <summary>
-/// Collects the complete set of glyph IDs needed for a font subset,
-/// including resolving composite glyph component dependencies by parsing
-/// the raw glyf table data.
+/// Collects the initial valid glyph IDs for a font subset.
+/// Composite dependencies are resolved from raw bytes by FontSubsetter, not this parsed-model helper.
 /// </summary>
 public static class GlyphCollector
 {
     /// <summary>
-    /// Collects all glyph IDs needed for a subset, including .notdef (glyph 0)
-    /// and all transitively referenced composite glyph components.
+    /// Collects valid requested glyph IDs and .notdef (glyph 0).
+    /// FontSubsetter adds any required composite components during table rebuilding.
     /// Returns a sorted list of unique glyph IDs.
     /// </summary>
     /// <param name="typeface">The parsed font (used for glyph count validation).</param>

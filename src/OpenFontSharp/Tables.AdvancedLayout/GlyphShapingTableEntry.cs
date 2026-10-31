@@ -26,20 +26,37 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
 
+    /// <summary>
+    /// Provides shared parsing for OpenType glyph substitution and positioning tables.
+    /// </summary>
     public abstract class GlyphShapingTableEntry : TableEntry
     {
 
+        /// <summary>Gets the major version of the layout table.</summary>
         public ushort MajorVersion { get; private set; }
+        /// <summary>Gets the minor version of the layout table.</summary>
         public ushort MinorVersion { get; private set; }
 
-        public ScriptList ScriptList { get; private set; }
-        public FeatureList FeatureList { get; private set; }
+        ScriptList? _scriptList;
+        /// <summary>Gets the script records parsed from the table.</summary>
+        /// <exception cref="InvalidOperationException">The table has not been parsed.</exception>
+        public ScriptList ScriptList
+        {
+            get => _scriptList ?? throw new InvalidOperationException("The layout table has not been parsed.");
+            private set => _scriptList = value;
+        }
+
+        /// <summary>
+        /// Gets the parsed feature records, or <see langword="null"/> when only the script list was requested.
+        /// </summary>
+        public FeatureList? FeatureList { get; private set; }
 
         /// <summary>
         /// read script_list, feature_list, and skip look up table
         /// </summary>
         internal bool OnlyScriptList { get; set; } //
 
+        /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //-------------------------------------------
@@ -206,9 +223,19 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             }
         }
 
+        /// <summary>Reads the lookup subtables for one lookup record.</summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="lookupTablePos">The lookup table's offset.</param>
+        /// <param name="lookupType">The format-specific lookup type.</param>
+        /// <param name="lookupFlags">Flags controlling lookup application.</param>
+        /// <param name="subTableOffsets">Offsets of the lookup subtables.</param>
+        /// <param name="markFilteringSet">The mark filtering set index, if present.</param>
         protected abstract void ReadLookupTable(BinaryReader reader, long lookupTablePos,
                                                 ushort lookupType, ushort lookupFlags,
                                                 ushort[] subTableOffsets, ushort markFilteringSet);
+        /// <summary>Reads feature variations at the specified offset.</summary>
+        /// <param name="reader">The reader for the OpenType data.</param>
+        /// <param name="featureVariationsBeginAt">The offset of the FeatureVariations table.</param>
         protected abstract void ReadFeatureVariations(BinaryReader reader, long featureVariationsBeginAt);
 
 

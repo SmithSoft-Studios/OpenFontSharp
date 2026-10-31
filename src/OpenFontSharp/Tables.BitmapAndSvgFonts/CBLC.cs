@@ -32,7 +32,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     /// </summary>
     class CBLC : TableEntry
     {
-        BitmapSizeTable[] _bmpSizeTables;
+        BitmapSizeTable[]? _parsedSizeTables;
+        BitmapSizeTable[] _bmpSizeTables
+        {
+            get => _parsedSizeTables ?? throw new NullReferenceException("The CBLC bitmap size tables have not been parsed.");
+            set => _parsedSizeTables = value;
+        }
 
         public const string _N = "CBLC";
         public override string Name => _N;
@@ -101,7 +106,8 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                     IndexSubTableArray indexSubTableArr = indexSubTableArrs[i];
                     reader.BaseStream.Position = cblcBeginPos + bmpSizeTable.indexSubTableArrayOffset + indexSubTableArr.additionalOffsetToIndexSubtable;
 
-                    IndexSubTableBase result = subTables[i] = IndexSubTableBase.CreateFrom(bmpSizeTable, reader);
+                    IndexSubTableBase result = subTables[i] = IndexSubTableBase.CreateFrom(bmpSizeTable, reader)
+                        ?? throw new NullReferenceException("The CBLC bitmap index format is unsupported.");
                     result.firstGlyphIndex = indexSubTableArr.firstGlyphIndex;
                     result.lastGlyphIndex = indexSubTableArr.lastGlyphIndex;
                 }
@@ -117,7 +123,9 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                 uint numberofIndexSubTables = bmpSizeTable.numberOfIndexSubTables;
                 for (uint i = 0; i < numberofIndexSubTables; ++i)
                 {
-                    bmpSizeTable.indexSubTables[i].BuildGlyphList(glyphs);
+                    IndexSubTableBase subTable = bmpSizeTable.indexSubTables[i]
+                        ?? throw new NullReferenceException("The CBLC bitmap index format is unsupported.");
+                    subTable.BuildGlyphList(glyphs);
                 }
             }
             return glyphs.ToArray();

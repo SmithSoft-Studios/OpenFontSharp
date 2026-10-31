@@ -10,8 +10,18 @@ namespace OpenFontSharp.Tables.CFF
 #if DEBUG
         public static bool s_dbugBreakMe;
 #endif
-        List<Type2Instruction> _step1List;
-        List<Type2Instruction> _step2List;
+        List<Type2Instruction>? _firstPass;
+        List<Type2Instruction> _step1List
+        {
+            get => _firstPass ?? throw new NullReferenceException("Instruction compaction has not started.");
+            set => _firstPass = value;
+        }
+        List<Type2Instruction>? _secondPass;
+        List<Type2Instruction> _step2List
+        {
+            get => _secondPass ?? throw new NullReferenceException("Instruction compaction has not started.");
+            set => _secondPass = value;
+        }
 
         void CompactStep1OnlyLoadInt(List<Type2Instruction> insts)
         {
@@ -279,11 +289,11 @@ namespace OpenFontSharp.Tables.CFF
             //2. compact other cmd
 
             //reset
-            if (_step1List == null)
+            if (_firstPass == null)
             {
                 _step1List = new List<Type2Instruction>();
             }
-            if (_step2List == null)
+            if (_secondPass == null)
             {
                 _step2List = new List<Type2Instruction>();
             }

@@ -15,7 +15,9 @@ public class SubsettingTests
     {
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
-        return reader.Read(stream);
+        var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
+        return typeface;
     }
 
     [Fact]

@@ -40,6 +40,7 @@ public class MetricsTests
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
         var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
 
         var width = TextMeasurer.MeasureWidth(typeface, "Hello", 12);
 
@@ -52,6 +53,7 @@ public class MetricsTests
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
         var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
 
         TextMeasurer.MeasureWidth(typeface, "", 12).Should().Be(0);
     }
@@ -62,6 +64,7 @@ public class MetricsTests
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
         var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
 
         // Glyph 0 is .notdef — may or may not have a name depending on font
         var name = typeface.GetGlyphName(0);
@@ -74,6 +77,7 @@ public class MetricsTests
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
         var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
 
         var pairs = typeface.GetAllKerningPairs();
 
@@ -87,6 +91,7 @@ public class MetricsTests
         var reader = new OpenFontReader();
         using var stream = File.OpenRead(RobotoPath);
         var typeface = reader.Read(stream);
+        Assert.NotNull(typeface);
 
         typeface.HasTtfOutline.Should().BeTrue();
     }

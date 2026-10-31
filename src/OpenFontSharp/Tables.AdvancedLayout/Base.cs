@@ -8,14 +8,22 @@
 
 namespace OpenFontSharp.Tables.AdvancedLayout
 {
+    /// <summary>
+    /// Represents baseline and script extent information from an OpenType BASE table.
+    /// </summary>
     public class BASE : TableEntry
     {
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "BASE";
+        /// <inheritdoc />
         public override string Name => _N;
 
-        public AxisTable _horizontalAxis;
-        public AxisTable _verticalAxis;
+        /// <summary>Gets the horizontal baseline data, if present.</summary>
+        public AxisTable? _horizontalAxis;
+        /// <summary>Gets the vertical baseline data, if present.</summary>
+        public AxisTable? _verticalAxis;
 
+        /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //BASE Header
@@ -87,11 +95,15 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         }
 
+        /// <summary>Stores baseline tags and scripts for one text direction.</summary>
         public class AxisTable
         {
+            /// <summary>Indicates whether this is the vertical rather than horizontal axis.</summary>
             public bool isVerticalAxis; //false = horizontal , true= verical axis
-            public string[] baseTagList;
-            public BaseScript[] baseScripts;
+            /// <summary>Gets the baseline tags, if the table provides them.</summary>
+            public string[]? baseTagList;
+            /// <summary>Gets the scripts described by this axis, if present.</summary>
+            public BaseScript[]? baseScripts;
 #if DEBUG
             public override string ToString()
             {
@@ -270,10 +282,17 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 this.baseScriptOffset = offset;
             }
         }
+        /// <summary>Identifies a language-system-specific baseline extent table.</summary>
         public readonly struct BaseLangSysRecord
         {
+            /// <summary>The four-byte script or language-system tag.</summary>
             public readonly string baseScriptTag;
+            /// <summary>The offset to the corresponding BASE table.</summary>
             public readonly ushort baseScriptOffset;
+
+            /// <summary>Creates a record from its tag and table offset.</summary>
+            /// <param name="scriptTag">The four-byte script or language-system tag.</param>
+            /// <param name="offset">The offset to the associated table.</param>
             public BaseLangSysRecord(string scriptTag, ushort offset)
             {
                 this.baseScriptTag = scriptTag;
@@ -281,16 +300,24 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             }
         }
 
+        /// <summary>Stores baseline values and extent data for one script.</summary>
         public class BaseScript
         {
-            public string ScriptIdenTag;
+            /// <summary>The script's four-byte identifier.</summary>
+            /// <summary>The parser-assigned four-byte script identifier, if this record has been parsed.</summary>
+            public string? ScriptIdenTag;
+            /// <summary>The baseline coordinates, or the default value when the optional table is absent.</summary>
             public BaseValues baseValues;
-            public BaseLangSysRecord[] baseLangSysRecords;
-            public MinMax MinMax;
+            /// <summary>Language-system extent records for the script.</summary>
+            public BaseLangSysRecord[] baseLangSysRecords = Array.Empty<BaseLangSysRecord>();
+            /// <summary>The default minimum and maximum extents, when provided.</summary>
+            public MinMax? MinMax;
+
+            /// <summary>Creates an empty script record for parser population.</summary>
             public BaseScript() { }
 
 #if DEBUG
-            public override string ToString()
+            public override string? ToString()
             {
                 return ScriptIdenTag;
             }
@@ -319,7 +346,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             ushort baseValueOffset = reader.ReadUInt16();
             ushort defaultMinMaxOffset = reader.ReadUInt16();
             ushort baseLangSysCount = reader.ReadUInt16();
-            BaseLangSysRecord[] baseLangSysRecords = null;
+            BaseLangSysRecord[] baseLangSysRecords = Array.Empty<BaseLangSysRecord>();
 
             if (baseLangSysCount > 0)
             {
@@ -385,11 +412,17 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             return new BaseValues(defaultBaselineIndex, baseCoords);
         }
 
+        /// <summary>Stores the default baseline index and its coordinates.</summary>
         public readonly struct BaseValues
         {
+            /// <summary>The index of the default baseline in the axis tag list.</summary>
             public readonly ushort defaultBaseLineIndex;
+            /// <summary>Coordinates corresponding to the baseline tags.</summary>
             public readonly BaseCoord[] baseCoords;
 
+            /// <summary>Creates baseline values from an index and coordinate array.</summary>
+            /// <param name="defaultBaseLineIndex">The index of the default baseline.</param>
+            /// <param name="baseCoords">Coordinates for the listed baselines.</param>
             public BaseValues(ushort defaultBaseLineIndex, BaseCoord[] baseCoords)
             {
                 this.defaultBaseLineIndex = defaultBaseLineIndex;
@@ -398,23 +431,35 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
 
 
+        /// <summary>Represents a baseline or extent coordinate.</summary>
         public readonly struct BaseCoord
         {
+            /// <summary>The format of this coordinate record.</summary>
             public readonly ushort baseCoordFormat;
             /// <summary>
             ///  X or Y value, in design units
             /// </summary>
             public readonly short coord;
 
+            /// <summary>The glyph referenced by format 2.</summary>
             public readonly ushort referenceGlyph; //found in format2
+            /// <summary>The contour point referenced by format 2.</summary>
             public readonly ushort baseCoordPoint; //found in format2
 
+            /// <summary>Creates a coordinate specified in design units.</summary>
+            /// <param name="baseCoordFormat">The coordinate format.</param>
+            /// <param name="coord">The coordinate value in design units.</param>
             public BaseCoord(ushort baseCoordFormat, short coord)
             {
                 this.baseCoordFormat = baseCoordFormat;
                 this.coord = coord;
                 this.referenceGlyph = this.baseCoordPoint = 0;
             }
+            /// <summary>Creates a coordinate with a glyph and contour-point reference.</summary>
+            /// <param name="baseCoordFormat">The coordinate format.</param>
+            /// <param name="coord">The coordinate value in design units.</param>
+            /// <param name="referenceGlyph">The referenced glyph identifier.</param>
+            /// <param name="baseCoordPoint">The referenced contour-point index.</param>
             public BaseCoord(ushort baseCoordFormat, short coord, ushort referenceGlyph, ushort baseCoordPoint)
             {
                 this.baseCoordFormat = baseCoordFormat;
@@ -558,7 +603,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             ushort maxCoordOffset = reader.ReadUInt16();
             ushort featMinMaxCount = reader.ReadUInt16();
 
-            FeatureMinMaxOffset[] minMaxFeatureOffsets = null;
+            FeatureMinMaxOffset[] minMaxFeatureOffsets = Array.Empty<FeatureMinMaxOffset>();
             if (featMinMaxCount > 0)
             {
                 minMaxFeatureOffsets = new FeatureMinMaxOffset[featMinMaxCount];
@@ -600,17 +645,30 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             return minMax;
         }
 
+        /// <summary>Stores the default and feature-specific extent coordinates.</summary>
         public class MinMax
         {
+            /// <summary>The minimum extent, or the default coordinate when the offset is zero.</summary>
             public BaseCoord minCoord;
+            /// <summary>The maximum extent, or the default coordinate when the offset is zero.</summary>
             public BaseCoord maxCoord;
-            public FeatureMinMax[] featureMinMaxRecords;
+            /// <summary>Feature-specific extent records.</summary>
+            public FeatureMinMax[] featureMinMaxRecords = Array.Empty<FeatureMinMax>();
         }
+        /// <summary>Stores minimum and maximum extents associated with one feature tag.</summary>
         public readonly struct FeatureMinMax
         {
+            /// <summary>The four-byte feature tag.</summary>
             public readonly string featureTableTag;
+            /// <summary>The feature's minimum extent.</summary>
             public readonly BaseCoord minCoord;
+            /// <summary>The feature's maximum extent.</summary>
             public readonly BaseCoord maxCoord;
+
+            /// <summary>Creates feature-specific extent data.</summary>
+            /// <param name="tag">The four-byte feature tag.</param>
+            /// <param name="minCoord">The minimum extent.</param>
+            /// <param name="maxCoord">The maximum extent.</param>
             public FeatureMinMax(string tag, BaseCoord minCoord, BaseCoord maxCoord)
             {
                 featureTableTag = tag;

@@ -4,21 +4,30 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 {
     //https://docs.microsoft.com/en-us/typography/opentype/spec/featurelist
 
+    /// <summary>Describes a registered OpenType layout feature.</summary>
     public sealed class FeatureInfo
     {
+        /// <summary>Gets the human-readable description of the feature.</summary>
         public readonly string fullname;
+        /// <summary>Gets the four-character feature tag.</summary>
         public readonly string shortname;
+
+        /// <summary>Creates feature metadata from its description and tag.</summary>
+        /// <param name="fullname">The human-readable feature description.</param>
+        /// <param name="shortname">The four-character OpenType feature tag.</param>
         public FeatureInfo(string fullname, string shortname)
         {
             this.fullname = fullname;
             this.shortname = shortname;
         }
     }
+    /// <summary>Provides metadata for standard OpenType layout feature tags.</summary>
     public static class Features
     {
         static readonly Dictionary<string, FeatureInfo> s_features = new Dictionary<string, FeatureInfo>();
 
         // 
+        /// <summary>Commonly used feature metadata instances, indexed by their OpenType tag.</summary>
         public static readonly FeatureInfo
             aalt = _("aalt", "Access All Alternates"),
             abvf = _("abvf", "Above-base Forms"),

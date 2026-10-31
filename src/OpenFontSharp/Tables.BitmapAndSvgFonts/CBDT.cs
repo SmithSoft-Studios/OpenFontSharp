@@ -37,8 +37,13 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         readonly GlyphBitmapDataFmt19 _format19 = new GlyphBitmapDataFmt19();
 
 
-        System.IO.MemoryStream _ms; //sub-stream contains image data
-        OpenFontSharp.ByteOrderSwappingBinaryReader _binReader;
+        System.IO.MemoryStream? _ms; //sub-stream contains image data
+        OpenFontSharp.ByteOrderSwappingBinaryReader? _loadedReader;
+        OpenFontSharp.ByteOrderSwappingBinaryReader _binReader
+        {
+            get => _loadedReader ?? throw new NullReferenceException("Bitmap data has not been loaded or has been disposed.");
+            set => _loadedReader = value;
+        }
 
         public void Dispose()
         {
@@ -49,10 +54,10 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         {
             try
             {
-                if (_binReader != null)
+                if (_loadedReader != null)
                 {
                     ((System.IDisposable)_binReader).Dispose();
-                    _binReader = null;
+                    _loadedReader = null;
                 }
                 if (_ms != null)
                 {
@@ -60,7 +65,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                     _ms = null;
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 //
             }

@@ -22,7 +22,12 @@ namespace OpenFontSharp.Tables.Variations
         //The 'avar' table must be used in combination with a font variations('fvar') table and 
         //other required or optional tables used in variable fonts.  
 
-        SegmentMapRecord[] _axisSegmentMaps;
+        SegmentMapRecord[]? _parsedAxisSegmentMaps;
+        SegmentMapRecord[] _axisSegmentMaps
+        {
+            get => _parsedAxisSegmentMaps ?? throw new NullReferenceException("The avar segment maps have not been parsed.");
+            set => _parsedAxisSegmentMaps = value;
+        }
         protected override void ReadContentFrom(BinaryReader reader)
         {
 
@@ -66,7 +71,12 @@ namespace OpenFontSharp.Tables.Variations
             //Type          Name                                Description
             //uint16        positionMapCount                    The number of correspondence pairs for this axis.
             //AxisValueMap  axisValueMaps[positionMapCount]     The array of axis value map records for this axis.
-            public AxisValueMap[] axisValueMaps;
+            AxisValueMap[]? _parsedMaps;
+            public AxisValueMap[] axisValueMaps
+            {
+                get => _parsedMaps ?? throw new NullReferenceException("The axis value map has not been parsed.");
+                set => _parsedMaps = value;
+            }
             public void ReadContent(BinaryReader reader)
             {
                 ushort positionMapCount = reader.ReadUInt16();

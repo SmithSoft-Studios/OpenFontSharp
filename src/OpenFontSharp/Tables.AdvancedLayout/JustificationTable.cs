@@ -9,9 +9,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     {
         //https://docs.microsoft.com/en-us/typography/opentype/spec/jstf
 
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "JSTF";
+        /// <inheritdoc />
         public override string Name => _N;
-        JstfScriptTable[] _jsftScriptTables;
+        JstfScriptTable[] _jsftScriptTables = Array.Empty<JstfScriptTable>();
 
         //The Justification table(JSTF) provides font developers with additional control over glyph substitution and
         //positioning in justified text.
@@ -19,6 +21,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         //Text-processing clients now have more options to expand or 
         //shrink word and glyph spacing so text fills the specified line length.
 
+        /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //test this with Arial font
@@ -73,19 +76,25 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             }
         }
 
+        /// <summary>Stores justification data for one script.</summary>
         public class JstfScriptTable
         {
-            public ushort[] extenderGlyphs;
+            /// <summary>Gets the glyph identifiers that can extend justified text, if provided.</summary>
+            public ushort[]? extenderGlyphs;
 
+            /// <summary>Gets the default language-system justification data.</summary>
             public JstfLangSysRecord defaultLangSys;
-            public JstfLangSysRecord[] other;
+            /// <summary>Gets the language-specific justification records.</summary>
+            public JstfLangSysRecord[] other = Array.Empty<JstfLangSysRecord>();
 
+            /// <summary>Creates an empty script record for parser population.</summary>
             public JstfScriptTable()
             {
             }
-            public string ScriptTag { get; set; }
+            /// <summary>Gets or sets the four-byte script tag.</summary>
+            public string? ScriptTag { get; set; }
 #if DEBUG
-            public override string ToString()
+            public override string? ToString()
             {
                 return ScriptTag;
             }
@@ -170,8 +179,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
 
 
+        /// <summary>Stores the ordered priority levels for a language system.</summary>
         public struct JstfLangSysRecord
         {
+            /// <summary>Gets the justification suggestions ordered by priority.</summary>
             public JstfPriority[] jstfPriority;
 
         }
@@ -213,6 +224,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
 
         }
 
+        /// <summary>Stores the lookup enablement and extent settings for one priority.</summary>
         public class JstfPriority
         {
             //JstfPriority table
@@ -220,31 +232,41 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //Type     Name                    Description
             //Offset16 shrinkageEnableGSUB     Offset to shrinkage-enable JstfGSUBModList table, from beginning of JstfPriority table(may be NULL)
             //Offset16 shrinkageDisableGSUB    Offset to shrinkage-disable JstfGSUBModList table, from beginning of JstfPriority table(may be NULL)
+            /// <summary>Offset to the GSUB lookups enabled for shrinking.</summary>
             public ushort shrinkageEnableGSUB;
+            /// <summary>Offset to the GSUB lookups disabled for shrinking.</summary>
             public ushort shrinkageDisableGSUB;
 
             //Offset16 shrinkageEnableGPOS     Offset to shrinkage-enable JstfGPOSModList table, from beginning of JstfPriority table(may be NULL)
             //Offset16 shrinkageDisableGPOS    Offset to shrinkage-disable JstfGPOSModList table, from beginning of JstfPriority table(may be NULL)
 
+            /// <summary>Offset to the GPOS lookups enabled for shrinking.</summary>
             public ushort shrinkageEnableGPOS;
+            /// <summary>Offset to the GPOS lookups disabled for shrinking.</summary>
             public ushort shrinkageDisableGPOS;
 
             //Offset16 shrinkageJstfMax        Offset to shrinkage JstfMax table, from beginning of JstfPriority table(may be NULL)
+            /// <summary>Offset to the maximum shrinkage table.</summary>
             public ushort shrinkageJstfMax;
 
             //Offset16 extensionEnableGSUB     Offset to extension-enable JstfGSUBModList table, from beginnning of JstfPriority table(may be NULL)
             //Offset16 extensionDisableGSUB    Offset to extension-disable JstfGSUBModList table, from beginning of JstfPriority table(may be NULL)
 
+            /// <summary>Offset to the GSUB lookups enabled for extension.</summary>
             public ushort extensionEnableGSUB;
+            /// <summary>Offset to the GSUB lookups disabled for extension.</summary>
             public ushort extensionDisableGSUB;
 
             //Offset16 extensionEnableGPOS     Offset to extension-enable JstfGPOSModList table, from beginning of JstfPriority table(may be NULL)
             //Offset16 extensionDisableGPOS    Offset to extension-disable JstfGPOSModList table, from beginning of JstfPriority table(may be NULL)
 
+            /// <summary>Offset to the GPOS lookups enabled for extension.</summary>
             public ushort extensionEnableGPOS;
+            /// <summary>Offset to the GPOS lookups disabled for extension.</summary>
             public ushort extensionDisableGPOS;
 
             //Offset16 extensionJstfMax        Offset to extension JstfMax table, from beginning of JstfPriority table(may be NULL)
+            /// <summary>Offset to the maximum extension table.</summary>
             public ushort extensionJstfMax;
         }
 

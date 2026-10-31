@@ -84,9 +84,11 @@ namespace OpenFontSharp.Tables.Others
             AxisRecord[] axisRecords = new AxisRecord[designAxisCount];
             for (int i = 0; i < designAxisCount; ++i)
             {
-                var axisRecord = new AxisRecord();
+                var axisRecord = new AxisRecord
+                {
+                    axisTagName = Utils.TagToString(reader.ReadUInt32())
+                };
                 axisRecords[i] = axisRecord;
-                axisRecord.axisTagName = Utils.TagToString(reader.ReadUInt32()); //4
                 axisRecord.axisNameId = reader.ReadUInt16(); //2
                 axisRecord.axisOrdering = reader.ReadUInt16(); //2
 
@@ -128,15 +130,14 @@ namespace OpenFontSharp.Tables.Others
                 reader.BaseStream.Position = axisValueOffsets_beginPos + offset;
 
                 ushort format = reader.ReadUInt16();//common field of all axis value table
-                AxisValueTableBase axisValueTbl = null;
-                switch (format)
+                AxisValueTableBase axisValueTbl = format switch
                 {
-                    default: throw new OpenFontNotSupportedException();
-                    case 1: axisValueTbl = new AxisValueTableFmt1(); break;
-                    case 2: axisValueTbl = new AxisValueTableFmt2(); break;
-                    case 3: axisValueTbl = new AxisValueTableFmt3(); break;
-                    case 4: axisValueTbl = new AxisValueTableFmt4(); break;
-                }
+                    1 => new AxisValueTableFmt1(),
+                    2 => new AxisValueTableFmt2(),
+                    3 => new AxisValueTableFmt3(),
+                    4 => new AxisValueTableFmt4(),
+                    _ => throw new OpenFontNotSupportedException()
+                };
                 axisValueTbl.ReadContent(reader);
                 axisValueTables[i] = axisValueTbl;
             }
@@ -190,7 +191,7 @@ namespace OpenFontSharp.Tables.Others
 
         public class AxisRecord
         {
-            public string axisTagName;
+            public required string axisTagName;
             public ushort axisNameId;
             public ushort axisOrdering;
 #if DEBUG
@@ -367,7 +368,7 @@ namespace OpenFontSharp.Tables.Others
             //AxisValue axisValues[axisCount]   Array of AxisValue records that provide the combination of axis values, one for each contributing axis.
 
 
-            public AxisValueRecord[] _axisValueRecords;
+            public AxisValueRecord[]? _axisValueRecords;
             public ushort flags;
             public ushort valueNameId;
             public override void ReadContent(BinaryReader reader)

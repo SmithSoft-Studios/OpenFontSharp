@@ -56,7 +56,12 @@ namespace OpenFontSharp.WebFont
 
         //translated values
         //public UnreadTableEntry unreadTableEntry; //simulate 
-        public string Name { get; set; }
+        string? _name;
+        public string Name
+        {
+            get => _name ?? throw new NullReferenceException("The WOFF directory tag has not been decoded.");
+            set => _name = value;
+        }
         public long ExpectedStartAt { get; set; }
 #if DEBUG
         public WoffTableDirectory() { }
@@ -67,18 +72,24 @@ namespace OpenFontSharp.WebFont
 #endif
     }
 
+    /// <summary>Decompresses a WOFF table using zlib.</summary>
+    /// <param name="compressedInput">The compressed table bytes.</param>
+    /// <param name="decompressOutput">The destination buffer, sized to the table's original length.</param>
+    /// <returns>True if decompression succeeds; otherwise false.</returns>
     public delegate bool ZlibDecompressStreamFunc(byte[] compressedInput, byte[] decompressOutput);
+    /// <summary>Provides the optional default zlib decompressor for WOFF fonts.</summary>
     public static class WoffDefaultZlibDecompressFunc
     {
-        public static ZlibDecompressStreamFunc DecompressHandler;
+        /// <summary>The decompressor, or null when none is installed. Compressed WOFF reading then fails.</summary>
+        public static ZlibDecompressStreamFunc? DecompressHandler;
     }
     class WoffReader
     {
-        WoffHeader _header;
+        WoffHeader? _header;
 
-        public ZlibDecompressStreamFunc DecompressHandler;
+        public ZlibDecompressStreamFunc? DecompressHandler;
 
-        public PreviewFontInfo ReadPreview(BinaryReader reader)
+        public PreviewFontInfo? ReadPreview(BinaryReader reader)
         {
             //read preview only
             //WOFF File
@@ -88,7 +99,7 @@ namespace OpenFontSharp.WebFont
             //ExtendedMetadata  An optional block of extended metadata, represented in XML format and compressed for storage in the WOFF file.
             //PrivateData       An optional block of private data for the font designer, foundry, or vendor to use.
 
-            PreviewFontInfo fontPreviewInfo = null;
+            PreviewFontInfo? fontPreviewInfo = null;
             _header = ReadWOFFHeader(reader);
             if (_header == null)
             {
@@ -146,7 +157,7 @@ namespace OpenFontSharp.WebFont
         }
 
 
-        internal bool Read(Typeface typeface, BinaryReader reader, RestoreTicket ticket)
+        internal bool Read(Typeface typeface, BinaryReader reader, RestoreTicket? ticket)
         {
             //WOFF File
             //WOFFHeader        File header with basic font type and version, along with offsets to metadata and private data blocks.
@@ -220,7 +231,7 @@ namespace OpenFontSharp.WebFont
 
             return tableEntryCollection;
         }
-        static WoffHeader ReadWOFFHeader(BinaryReader reader)
+        static WoffHeader? ReadWOFFHeader(BinaryReader reader)
         {
             //WOFFHeader
             //UInt32  signature         0x774F4646 'wOFF'
@@ -276,7 +287,7 @@ namespace OpenFontSharp.WebFont
             //Its size is calculated by multiplying the numTables value in the WOFF header times the size of a single WOFF table directory.
             //Each table directory entry specifies the size and location of a single font data table. 
 
-            uint tableCount = (uint)_header.numTables; //?
+            uint tableCount = (_header ?? throw new NullReferenceException("The WOFF header has not been read.")).numTables;
             //tableDirs = new WoffTableDirectory[tableCount];
             long expectedStartAt = 0;
 
@@ -337,10 +348,10 @@ namespace OpenFontSharp.WebFont
                 else
                 {
                     var decompressedBuffer = new byte[table.origLength];
-                    if (!DecompressHandler(compressedBuffer, decompressedBuffer))
+                    ZlibDecompressStreamFunc decompress = DecompressHandler ?? throw new NullReferenceException("No WOFF decompressor has been installed.");
+                    if (!decompress(compressedBuffer, decompressedBuffer))
                     {
                         //if not pass set to null
-                        decompressedBuffer = null;
                     }
                     else
                     {

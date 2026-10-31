@@ -5,13 +5,18 @@ using OpenFontSharp.Tables.CFF;
 
 namespace OpenFontSharp;
 
+/// <summary>Selects the metric convention used to calculate line spacing.</summary>
 public enum LineSpacingChoice
 {
+  /// <summary>OS/2 typographic ascender, descender, and line gap.</summary>
   TypoMetric,
+  /// <summary>OS/2 Windows ascent and descent.</summary>
   Windows,
+  /// <summary>The hhea ascent, descent, and line gap.</summary>
   Mac
 }
 
+/// <summary>Interprets the selection flags stored in the OS/2 table.</summary>
 public readonly struct OS2FsSelection
 {
   //Bit # 	macStyle bit 	C definition 	Description
@@ -26,40 +31,59 @@ public readonly struct OS2FsSelection
   //8                         WWS             The font has ‘name’ table strings consistent with a weight / width / slope family without requiring use of ‘name’ IDs 21 and 22. (Please see more detailed description below.)
   //9                         OBLIQUE         Font contains oblique characters.
   readonly ushort _fsSelection;
+  /// <summary>Wraps raw OS/2 selection bits.</summary>
+  /// <param name="fsSelection">The raw fsSelection value.</param>
   public OS2FsSelection(ushort fsSelection)
   {
     _fsSelection = fsSelection;
   }
+  /// <summary>Gets the italic flag.</summary>
   public bool IsItalic => (_fsSelection & 0x1) != 0;
+  /// <summary>Gets the underscore flag.</summary>
   public bool IsUnderScore => ((_fsSelection >> 1) & 0x1) != 0;
+  /// <summary>Gets the negative-image flag.</summary>
   public bool IsNegative => ((_fsSelection >> 2) & 0x1) != 0;
+  /// <summary>Gets the hollow-outline flag.</summary>
   public bool IsOutline => ((_fsSelection >> 3) & 0x1) != 0;
+  /// <summary>Gets the strikeout flag.</summary>
   public bool IsStrikeOut => ((_fsSelection >> 4) & 0x1) != 0;
+  /// <summary>Gets the bold flag.</summary>
   public bool IsBold => ((_fsSelection >> 5) & 0x1) != 0;
+  /// <summary>Gets the regular-style flag.</summary>
   public bool IsRegular => ((_fsSelection >> 6) & 0x1) != 0;
+  /// <summary>Gets whether the font recommends typographic line metrics.</summary>
   public bool USE_TYPO_METRICS => ((_fsSelection >> 7) & 0x1) != 0;
+  /// <summary>Gets whether naming follows weight, width, and slope conventions.</summary>
   public bool WWS => ((_fsSelection >> 8) & 0x1) != 0;
+  /// <summary>Gets the oblique flag.</summary>
   public bool IsOblique => ((_fsSelection >> 9) & 0x1) != 0;
 
 }
 
 
 
+/// <summary>Library-specific style flags translated from OS/2 selection bits.</summary>
 [System.Flags]
 public enum TranslatedOS2FontStyle : ushort
 {
 
   //@prepare's note, please note:=> this is not real value, this is 'translated' value from OS2.fsSelection 
 
+  /// <summary>No recognized style flags are set.</summary>
   UNSET = 0,
 
+  /// <summary>The italic style flag.</summary>
   ITALIC = 1,
+  /// <summary>The bold style flag.</summary>
   BOLD = 1 << 1,
+  /// <summary>The regular style flag.</summary>
   REGULAR = 1 << 2,
+  /// <summary>The oblique style flag.</summary>
   OBLIQUE = 1 << 3,
 }
 
 
+/// <summary>The OpenType OS/2 width classifications.</summary>
 public enum OS2WidthClass : byte
 {
   //from https://docs.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass 
@@ -76,24 +100,42 @@ public enum OS2WidthClass : byte
   //8 	Extra-expanded 	    FWIDTH_EXTRA_EXPANDED 	150
   //9 	Ultra-expanded      FWIDTH_ULTRA_EXPANDED 	200
 
+  /// <summary>An unspecified or unrecognized width classification.</summary>
   Unknown,//@prepare's => my custom
+  /// <summary>Ultra-condensed width, nominally 50 percent of normal.</summary>
   UltraCondensed,
+  /// <summary>Extra-condensed width, nominally 62.5 percent of normal.</summary>
   ExtraCondensed,
+  /// <summary>Condensed width, nominally 75 percent of normal.</summary>
   Condensed,
+  /// <summary>Semi-condensed width, nominally 87.5 percent of normal.</summary>
   SemiCondensed,
+  /// <summary>Normal width.</summary>
   Medium = 5,
+  /// <summary>An alias for normal width.</summary>
   Normal = 5,
+  /// <summary>Semi-expanded width, nominally 112.5 percent of normal.</summary>
   SemiExpanded = 6,
+  /// <summary>Expanded width, nominally 125 percent of normal.</summary>
   Expanded = 7,
+  /// <summary>Extra-expanded width, nominally 150 percent of normal.</summary>
   ExtraExpanded = 8,
+  /// <summary>Ultra-expanded width, nominally 200 percent of normal.</summary>
   UltraExpanded = 9
 }
 
+/// <summary>Font metric, feature availability, outline, and retention helpers.</summary>
 public static partial class TypefaceExtensions
 {
 
+  /// <summary>Gets the cached advance width of the space character.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>The space advance in font design units, or zero if unmapped.</returns>
   public static ushort GetWhitespaceWidth(this Typeface typeface) => typeface._whitespaceWidth;
 
+  /// <summary>Checks the OS/2 USE_TYPO_METRICS recommendation.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>True when the font recommends typographic line metrics.</returns>
   public static bool RecommendToUseTypoMetricsForLineSpacing(this Typeface typeface)
   {
     //https://www.microsoft.com/typography/otspec/os2.htm
@@ -111,6 +153,9 @@ public static partial class TypefaceExtensions
     return ((typeface.OS2Table.fsSelection >> 7) & 1) != 0;
   }
 
+  /// <summary>Translates the font's selection bits into library-specific style flags.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>The translated style flags, not the raw OS/2 bit mask.</returns>
   public static TranslatedOS2FontStyle TranslateOS2FontStyle(this Typeface typeface) => TranslateOS2FontStyle(typeface.OS2Table);
 
   internal static TranslatedOS2FontStyle TranslateOS2FontStyle(OS2Table os2Table)
@@ -161,6 +206,9 @@ public static partial class TypefaceExtensions
 
 
 
+  /// <summary>Converts a raw width value using the legacy classification rule.</summary>
+  /// <param name="os2Weight">The raw OS/2 width value, despite the historical parameter name.</param>
+  /// <returns>The cast value below 9, or <see cref="OS2WidthClass.Unknown"/> for values of 9 or greater.</returns>
   public static OS2WidthClass TranslateOS2WidthClass(ushort os2Weight)
   {
     if (os2Weight >= (ushort)OS2WidthClass.UltraExpanded)
@@ -291,6 +339,10 @@ public static partial class TypefaceExtensions
   }
 
 
+  /// <summary>Calculates typographic line spacing and reports the metric convention used.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <param name="choice">Always <see cref="LineSpacingChoice.TypoMetric"/> in the current implementation.</param>
+  /// <returns>OS/2 typographic ascent minus descent plus line gap, in font design units.</returns>
   public static int CalculateRecommendLineSpacing(this Typeface typeface, out LineSpacingChoice choice)
   {
 
@@ -391,11 +443,18 @@ public static partial class TypefaceExtensions
     //}
 
   }
+  /// <summary>Calculates the Windows clipping height (unlike the overload with an output choice).</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>Windows ascent plus descent in font design units.</returns>
   public static int CalculateRecommendLineSpacing(this Typeface typeface)
   {
     return CalculateMaxLineClipHeight(typeface);
     //return CalculateRecommendLineSpacing(typeface, out var _);
   }
+  /// <summary>Calculates line spacing using the requested convention.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <param name="choice">The metric convention; unrecognized values use Windows metrics.</param>
+  /// <returns>Spacing in font design units. The Mac convention adds the signed hhea descent as stored.</returns>
   public static int CalculateLineSpacing(this Typeface typeface, LineSpacingChoice choice)
   {
     switch (choice)
@@ -409,6 +468,9 @@ public static partial class TypefaceExtensions
         return Calculate_TypoMetricLineSpacing(typeface);
     }
   }
+  /// <summary>Calculates the font's Windows vertical clipping height.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>Windows ascent plus descent in font design units.</returns>
   public static int CalculateMaxLineClipHeight(this Typeface typeface)
   {
     //TODO: review here
@@ -417,10 +479,19 @@ public static partial class TypefaceExtensions
 
 
   //-------------------------------------------
+  /// <summary>Checks whether mathematical layout constants are available.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>True when MATH constants are loaded.</returns>
   public static bool HasMathTable(this Typeface typeface) => typeface.MathConsts != null;
 
+  /// <summary>Checks whether the font was loaded with SVG glyph data.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>The cached SVG availability flag; trimming can unload the underlying data.</returns>
   public static bool HasSvgTable(this Typeface typeface) => typeface.HasSvgTable;
 
+  /// <summary>Checks whether the font was loaded with color layers.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>The cached color availability flag; trimming can unload the underlying tables.</returns>
   public static bool HasColorTable(this Typeface typeface) => typeface.HasColorAndPal;
 
 
@@ -598,6 +669,9 @@ public static partial class TypefaceExtensions
         (short)System.Math.Ceiling(_maxY));
     }
   }
+  /// <summary>Evaluates approximate CFF outline bounds once for an untrimmed CFF font.</summary>
+  /// <param name="typeface">The font to update. Non-CFF fonts are unchanged.</param>
+  /// <remarks>Curves are sampled rather than solved analytically. Requires loaded CFF glyph instructions.</remarks>
   public static void UpdateAllCffGlyphBounds(this Typeface typeface)
   {
     //TODO: review here again,
@@ -612,7 +686,7 @@ public static partial class TypefaceExtensions
         Glyph g = typeface.GetGlyph(i);
         boundFinder.Reset();
 
-        evalEngine.Run(boundFinder, g._cff1GlyphData.GlyphInstructions);
+        evalEngine.Run(boundFinder, g._cff1GlyphData!.GlyphInstructions);
 
         g.Bounds = boundFinder.GetResultBounds();
       }
@@ -624,7 +698,14 @@ public static partial class TypefaceExtensions
 
   //-------------------------------------------
   //my custom extension
+  /// <summary>Gets the application-defined integer key associated with a font.</summary>
+  /// <param name="typeface">The font to inspect.</param>
+  /// <returns>The stored key, initially zero.</returns>
   public static int GetCustomTypefaceKey(Typeface typeface) => typeface._typefaceKey;
+  /// <summary>Sets an application-defined integer key on a font.</summary>
+  /// <param name="typeface">The font to update.</param>
+  /// <param name="typefaceKey">The new key.</param>
+  /// <returns>The assigned key.</returns>
   public static int SetCustomTypefaceKey(Typeface typeface, int typefaceKey) => typeface._typefaceKey = typefaceKey;
 }
 
@@ -633,7 +714,13 @@ public static partial class TypefaceExtensions
 /// </summary>
 public static class TypefaceInternalTypeAccessExtensions
 {
+  /// <summary>Gets the loaded OS/2 table directly.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>The OS/2 table.</returns>
   public static OS2Table GetOS2Table(this Typeface typeface) => typeface.OS2Table;
+  /// <summary>Gets the loaded name table directly.</summary>
+  /// <param name="typeface">The parsed font.</param>
+  /// <returns>The name table; individual name records may be absent.</returns>
   public static NameEntry GetNameEntry(this Typeface typeface) => typeface.NameEntry;
 }
 

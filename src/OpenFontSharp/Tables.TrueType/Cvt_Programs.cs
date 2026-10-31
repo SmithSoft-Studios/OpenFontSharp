@@ -13,7 +13,7 @@ namespace OpenFontSharp.Tables.TrueType
         /// <summary>
         /// control value in font unit
         /// </summary>
-        internal int[] _controlValues;
+        internal int[]? _controlValues;
         protected override void ReadContentFrom(BinaryReader reader)
         {
             int nelems = (int)(this.TableLength / sizeof(short));
@@ -31,7 +31,7 @@ namespace OpenFontSharp.Tables.TrueType
         public override string Name => _N;
         //
 
-        internal byte[] _programBuffer;
+        internal byte[]? _programBuffer;
         //
         protected override void ReadContentFrom(BinaryReader reader)
         {
@@ -44,7 +44,7 @@ namespace OpenFontSharp.Tables.TrueType
         public override string Name => _N;
         //
 
-        internal byte[] _programBuffer;
+        internal byte[]? _programBuffer;
         protected override void ReadContentFrom(BinaryReader reader)
         {
             _programBuffer = reader.ReadBytes((int)this.TableLength);

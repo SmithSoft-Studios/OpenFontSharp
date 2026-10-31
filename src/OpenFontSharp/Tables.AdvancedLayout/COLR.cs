@@ -2,13 +2,19 @@
 
 namespace OpenFontSharp.Tables.AdvancedLayout
 {
+    /// <summary>
+    /// Represents the OpenType color-layer table.
+    /// </summary>
     public class COLR : TableEntry
     {
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "COLR";
+        /// <inheritdoc />
         public override string Name => _N;
 
         // Read the COLR table
         // https://docs.microsoft.com/en-us/typography/opentype/spec/colr
+        /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
             long offset = reader.BaseStream.Position;
@@ -46,10 +52,13 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             }
         }
 
-        public ushort[] GlyphLayers { get; private set; }
-        public ushort[] GlyphPalettes { get; private set; }
+        /// <summary>Gets the glyph identifiers used as color layers.</summary>
+        public ushort[] GlyphLayers { get; private set; } = Array.Empty<ushort>();
+        /// <summary>Gets the palette entry indices corresponding to <see cref="GlyphLayers"/>.</summary>
+        public ushort[] GlyphPalettes { get; private set; } = Array.Empty<ushort>();
+        /// <summary>Maps base glyph identifiers to the first layer index.</summary>
         public readonly Dictionary<ushort, ushort> LayerIndices = new Dictionary<ushort, ushort>();
+        /// <summary>Maps base glyph identifiers to their number of layers.</summary>
         public readonly Dictionary<ushort, ushort> LayerCounts = new Dictionary<ushort, ushort>();
     }
 }
-

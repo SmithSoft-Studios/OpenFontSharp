@@ -73,7 +73,13 @@ public class SubsetFormatSupportTests
         var subset = FontFiles.Load(result.FontData);
 
         foreach (var (oldId, newId) in result.GlyphIdMap)
-            subset.GetGlyph(newId).GetCff1GlyphData().Name.Should().Be(original.GetGlyph(oldId).GetCff1GlyphData().Name);
+        {
+            var originalData = original.GetGlyph(oldId).GetCff1GlyphData();
+            var subsetData = subset.GetGlyph(newId).GetCff1GlyphData();
+            Assert.NotNull(originalData);
+            Assert.NotNull(subsetData);
+            subsetData.Name.Should().Be(originalData.Name);
+        }
     }
 
     [Fact]

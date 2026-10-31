@@ -24,8 +24,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     /// </summary>
     class LigCaretList
     {
-        LigGlyph[] _ligGlyphs;
-        CoverageTable _coverageTable;
+        LigGlyph[] _ligGlyphs = Array.Empty<LigGlyph>();
+        CoverageTable? _coverageTable;
 
         public static LigCaretList CreateFrom(BinaryReader reader, long beginAt)
         {
@@ -64,7 +64,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     /// </summary>
     class LigGlyph
     {
-        ushort[] _caretValueOffsets;
+        ushort[] _caretValueOffsets = Array.Empty<ushort>();
 
         public static LigGlyph CreateFrom(BinaryReader reader, long beginAt)
         {
@@ -191,7 +191,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
     class MarkGlyphSetsTable
     {
         ushort _format;
-        uint[] _coverageOffset;
+        uint[] _coverageOffset = Array.Empty<uint>();
 
         public static MarkGlyphSetsTable CreateFrom(BinaryReader reader, long beginAt)
         {

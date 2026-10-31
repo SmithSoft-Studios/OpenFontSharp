@@ -2,17 +2,23 @@
 
 namespace OpenFontSharp.Tables.AdvancedLayout
 {
+    /// <summary>
+    /// Represents the OpenType color palette table.
+    /// </summary>
     public class CPAL : TableEntry
     {
+        /// <summary>The OpenType tag identifying this table.</summary>
         public const string _N = "CPAL";
+        /// <inheritdoc />
         public override string Name => _N;
         //
 
-        byte[] _colorBGRABuffer;
+        byte[] _colorBGRABuffer = Array.Empty<byte>();
 
         // Palette Table Header
         // Read the CPAL table
         // https://docs.microsoft.com/en-us/typography/opentype/spec/cpal
+        /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
             long beginAt = reader.BaseStream.Position;
@@ -68,8 +74,17 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             _colorBGRABuffer = reader.ReadBytes(4 * ColorCount);
         }
 
-        public ushort[] Palettes { get; private set; }
+        /// <summary>Gets the starting color-record index for each palette.</summary>
+        public ushort[] Palettes { get; private set; } = Array.Empty<ushort>();
+        /// <summary>Gets the number of color records in the table.</summary>
         public ushort ColorCount { get; private set; }
+
+        /// <summary>Reads one color from the palette and returns its RGBA components.</summary>
+        /// <param name="colorIndex">The color-record index.</param>
+        /// <param name="r">Receives the red component.</param>
+        /// <param name="g">Receives the green component.</param>
+        /// <param name="b">Receives the blue component.</param>
+        /// <param name="a">Receives the alpha component.</param>
         public void GetColor(int colorIndex, out byte r, out byte g, out byte b, out byte a)
         {
             //Each color record has BGRA values. The color space for these values is sRGB.
@@ -88,4 +103,3 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         }
     }
 }
-

@@ -19,7 +19,7 @@ namespace OpenFontSharp.Tables.Others
         //In order to avoid grid fitting the entire font to determine the correct height, the VDMX table has been defined.
 
         //The VDMX table consists of a header followed by groupings of VDMX records:
-        Ratio[] _ratios;
+        Ratio[]? _ratios;
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //uint16 	version 	Version number (0 or 1).

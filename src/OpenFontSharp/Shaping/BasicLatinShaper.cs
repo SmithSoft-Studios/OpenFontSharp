@@ -2,8 +2,8 @@ namespace OpenFontSharp.Shaping;
 
 /// <summary>
 /// Basic text shaper for Latin, Cyrillic, and Greek scripts.
-/// Performs cmap glyph lookup, GSUB format 4 ligature substitution,
-/// and kerning from kern table and GPOS format 1 pair adjustment.
+/// Performs UTF-16 character cmap lookup, available GSUB substitutions,
+/// and legacy kern-table adjustments. GPOS positioning is not applied.
 /// Does NOT handle complex scripts (Arabic, Devanagari, CJK, etc.).
 /// </summary>
 public static class BasicLatinShaper
@@ -13,6 +13,10 @@ public static class BasicLatinShaper
     /// If the text contains complex scripts, sets RequiresComplexShaping = true
     /// but still performs basic cmap lookup for all characters.
     /// </summary>
+    /// <param name="typeface">The original parsed font, before subsetting.</param>
+    /// <param name="text">The UTF-16 text to shape.</param>
+    /// <returns>Glyph IDs, advances in font design units, and a complex-shaping warning flag.</returns>
+    /// <remarks>Does not provide bidi layout, supplementary-plane mapping, or source clusters for ligatures.</remarks>
     public static ShapingResult Shape(Typeface typeface, string text)
     {
         if (string.IsNullOrEmpty(text))

@@ -94,10 +94,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         //----------------
         //format 1
         public ushort startGlyph;
-        public ushort[] classValueArray;
+        public ushort[]? classValueArray;
         //---------------
         //format2
-        public ClassRangeRecord[] records;
+        public ClassRangeRecord[]? records;
         public static ClassDefTable CreateFrom(BinaryReader reader, long beginAt)
         {
 
@@ -168,6 +168,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 default: throw new OpenFontNotSupportedException();
                 case 1:
                     {
+                        ushort[] classValueArray = this.classValueArray
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         if (glyphIndex >= startGlyph &&
                             glyphIndex < classValueArray.Length)
                         {
@@ -177,7 +179,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     }
                 case 2:
                     {
-
+                        ClassRangeRecord[] records = this.records
+                            ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         for (int i = 0; i < records.Length; ++i)
                         {
                             //TODO: review a proper method here again

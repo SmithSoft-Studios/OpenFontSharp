@@ -5,6 +5,7 @@
 using System.Numerics;
 namespace OpenFontSharp
 {
+    /// <summary>A TrueType contour point with coordinates and an on-curve flag.</summary>
     [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct GlyphPointF
     {
@@ -16,19 +17,32 @@ namespace OpenFontSharp
         internal Vector2 P;
         internal bool onCurve;
 
+        /// <summary>Creates a contour point in font design units.</summary>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="onCurve">True for an outline point; false for a quadratic control point.</param>
         public GlyphPointF(float x, float y, bool onCurve)
         {
             P = new Vector2(x, y);
             this.onCurve = onCurve;
         }
+        /// <summary>Creates a contour point from a position vector.</summary>
+        /// <param name="position">The coordinates in font design units.</param>
+        /// <param name="onCurve">True for an outline point; false for a quadratic control point.</param>
         public GlyphPointF(Vector2 position, bool onCurve)
         {
             P = position;
             this.onCurve = onCurve;
         }
+        /// <summary>Gets the X coordinate.</summary>
         public float X => this.P.X;
+        /// <summary>Gets the Y coordinate.</summary>
         public float Y => this.P.Y;
 
+        /// <summary>Scales both coordinates while preserving the on-curve flag.</summary>
+        /// <param name="p">The point to scale.</param>
+        /// <param name="n">The scale factor.</param>
+        /// <returns>The scaled point.</returns>
         public static GlyphPointF operator *(GlyphPointF p, float n)
         {
             return new GlyphPointF(p.P * n, p.onCurve);

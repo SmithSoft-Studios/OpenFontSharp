@@ -3,14 +3,21 @@
 
 namespace OpenFontSharp.Tables.AdvancedLayout;
 
+/// <summary>Stores an OpenType mathematical value and its optional device-table offset.</summary>
 public readonly struct MathValueRecord
 {
   //MathValueRecord
   //Type      Name            Description
   //int16     Value           The X or Y value in design units
   //Offset16  DeviceTable     Offset to the device table – from the beginning of parent table.May be NULL. Suggested format for device table is 1.
+  /// <summary>Gets the value in font design units.</summary>
   public readonly short Value;
+  /// <summary>Gets the optional device-table offset.</summary>
   public readonly ushort DeviceTable;
+
+  /// <summary>Creates a mathematical value record.</summary>
+  /// <param name="value">The value in font design units.</param>
+  /// <param name="deviceTable">The optional device-table offset.</param>
   public MathValueRecord(short value, ushort deviceTable)
   {
     this.Value = value;
@@ -32,6 +39,7 @@ public readonly struct MathValueRecord
 #endif
 }
 
+/// <summary>Provides constants used to lay out mathematical expressions.</summary>
 public class MathConstants
 {
   //MathConstantsTable
@@ -347,27 +355,40 @@ public class MathConstants
   //---------------------------------------------------------
   //ONLY this value come from  "MathVariants" *** 
   //I expose that value on this class
+  /// <summary>Gets or sets the minimum overlap between connected parts of an extended glyph.</summary>
   public ushort MinConnectorOverlap { get; internal set; }
   //---------------------------------------------------------
 }
 
+/// <summary>Provides mathematical positioning and variant data for one glyph.</summary>
 public class MathGlyphInfo
 {
+  /// <summary>Gets the glyph identifier associated with this information.</summary>
   public readonly ushort GlyphIndex;
+
+  /// <summary>Creates per-glyph math information.</summary>
+  /// <param name="glyphIndex">The glyph identifier.</param>
   public MathGlyphInfo(ushort glyphIndex)
   {
     this.GlyphIndex = glyphIndex;
   }
 
+  /// <summary>Gets the optional italic correction for the glyph.</summary>
   public MathValueRecord? ItalicCorrection { get; internal set; }
+  /// <summary>Gets the optional top-accent attachment coordinate.</summary>
   public MathValueRecord? TopAccentAttachment { get; internal set; }
+  /// <summary>Gets whether the glyph is declared to be an extended shape.</summary>
   public bool IsShapeExtensible { get; internal set; }
 
-  //optional 
-  public MathKern TopLeftMathKern => _mathKernRec.TopLeft;
-  public MathKern TopRightMathKern => _mathKernRec.TopRight;
-  public MathKern BottomLeftMathKern => _mathKernRec.BottomLeft;
-  public MathKern BottomRightMathKern => _mathKernRec.BottomRight;
+  /// <summary>Gets the optional kern data at the top-left corner.</summary>
+  public MathKern? TopLeftMathKern => _mathKernRec.TopLeft;
+  /// <summary>Gets the optional kern data at the top-right corner.</summary>
+  public MathKern? TopRightMathKern => _mathKernRec.TopRight;
+  /// <summary>Gets the optional kern data at the bottom-left corner.</summary>
+  public MathKern? BottomLeftMathKern => _mathKernRec.BottomLeft;
+  /// <summary>Gets the optional kern data at the bottom-right corner.</summary>
+  public MathKern? BottomRightMathKern => _mathKernRec.BottomRight;
+  /// <summary>Gets whether any corner defines math-kern data.</summary>
   public bool HasSomeMathKern { get; private set; }
 
   //
@@ -378,24 +399,25 @@ public class MathGlyphInfo
     HasSomeMathKern = true;
   }
 
-  /// <summary>
-  /// vertical glyph construction
-  /// </summary>
-  public MathGlyphConstruction VertGlyphConstruction;
-  /// <summary>
-  /// horizontal glyph construction
-  /// </summary>
-  public MathGlyphConstruction HoriGlyphConstruction;
+  /// <summary>Gets or sets the optional vertical construction for an extended glyph.</summary>
+  public MathGlyphConstruction? VertGlyphConstruction;
+  /// <summary>Gets or sets the optional horizontal construction for an extended glyph.</summary>
+  public MathGlyphConstruction? HoriGlyphConstruction;
 
 }
+/// <summary>Stores assembly and variant records for one extendable math glyph.</summary>
 public class MathGlyphConstruction
 {
+  /// <summary>Gets or sets the italic correction for the glyph assembly.</summary>
   public MathValueRecord GlyphAsm_ItalicCorrection;
-  public GlyphPartRecord[] GlyphAsm_GlyphPartRecords;
-  public MathGlyphVariantRecord[] glyphVariantRecords;
+  /// <summary>Gets or sets the parts used to assemble a larger glyph.</summary>
+  public GlyphPartRecord[] GlyphAsm_GlyphPartRecords = Array.Empty<GlyphPartRecord>();
+  /// <summary>Gets or sets the ready-made glyph variants.</summary>
+  public MathGlyphVariantRecord[] glyphVariantRecords = Array.Empty<MathGlyphVariantRecord>();
 }
 
 
+/// <summary>Describes one part used to assemble a stretched mathematical glyph.</summary>
 public readonly struct GlyphPartRecord
 {
   //Thus, a GlyphPartRecord consists of the following fields: 
@@ -438,13 +460,25 @@ public readonly struct GlyphPartRecord
   //                                       0x0001 fExtender If set, the part can be skipped or repeated.
   //                                       0xFFFE Reserved.
 
+  /// <summary>Gets the glyph identifier of this assembly part.</summary>
   public readonly ushort GlyphId;
+  /// <summary>Gets the connector length at the start of the part.</summary>
   public readonly ushort StartConnectorLength;
+  /// <summary>Gets the connector length at the end of the part.</summary>
   public readonly ushort EndConnectorLength;
+  /// <summary>Gets the full advance of the part in the extension direction.</summary>
   public readonly ushort FullAdvance;
+  /// <summary>Gets the part flags.</summary>
   public readonly ushort PartFlags;
+  /// <summary>Gets whether this part can be repeated or omitted as an extender.</summary>
   public bool IsExtender => (PartFlags & 0x0001) != 0;
 
+  /// <summary>Creates a glyph assembly part record.</summary>
+  /// <param name="glyphId">The glyph identifier.</param>
+  /// <param name="startConnectorLength">The start connector length.</param>
+  /// <param name="endConnectorLength">The end connector length.</param>
+  /// <param name="fullAdvance">The full advance in the extension direction.</param>
+  /// <param name="partFlags">The part flags.</param>
   public GlyphPartRecord(ushort glyphId, ushort startConnectorLength, ushort endConnectorLength, ushort fullAdvance, ushort partFlags)
   {
     GlyphId = glyphId;
@@ -462,14 +496,21 @@ public readonly struct GlyphPartRecord
 }
 
 
+/// <summary>Describes a ready-made variant of a mathematical glyph.</summary>
 public readonly struct MathGlyphVariantRecord
 {
   //    MathGlyphVariantRecord Table
   //Type      Name                Description
   //uint16    VariantGlyph        Glyph ID for the variant.
   //uint16    AdvanceMeasurement  Advance width/height, in design units, of the variant, in the direction of requested glyph extension.
+  /// <summary>Gets the glyph identifier of the variant.</summary>
   public readonly ushort VariantGlyph;
+  /// <summary>Gets the variant's advance in the extension direction.</summary>
   public readonly ushort AdvanceMeasurement;
+
+  /// <summary>Creates a glyph variant record.</summary>
+  /// <param name="variantGlyph">The variant glyph identifier.</param>
+  /// <param name="advanceMeasurement">The advance in the extension direction.</param>
   public MathGlyphVariantRecord(ushort variantGlyph, ushort advanceMeasurement)
   {
     this.VariantGlyph = variantGlyph;
@@ -484,13 +525,21 @@ public readonly struct MathGlyphVariantRecord
 #endif
 }
 
+/// <summary>Stores height-dependent kerning values for one corner of a glyph.</summary>
 public class MathKern
 {
   //reference =>see  MathKernTable
+  /// <summary>Gets the number of correction heights.</summary>
   public ushort HeightCount;
+  /// <summary>Gets the heights where the kern value changes.</summary>
   public MathValueRecord[] CorrectionHeights;
+  /// <summary>Gets the kern values associated with the correction heights.</summary>
   public MathValueRecord[] KernValues;
 
+  /// <summary>Creates a height-dependent mathematical kern table.</summary>
+  /// <param name="heightCount">The number of correction heights.</param>
+  /// <param name="correctionHeights">The correction heights.</param>
+  /// <param name="kernValues">The associated kern values.</param>
   public MathKern(ushort heightCount, MathValueRecord[] correctionHeights, MathValueRecord[] kernValues)
   {
     HeightCount = heightCount;
@@ -509,14 +558,14 @@ public class MathKern
 readonly struct MathKernInfoRecord
 {
   //resolved value
-  public readonly MathKern TopRight;
-  public readonly MathKern TopLeft;
-  public readonly MathKern BottomRight;
-  public readonly MathKern BottomLeft;
-  public MathKernInfoRecord(MathKern topRight,
-    MathKern topLeft,
-    MathKern bottomRight,
-    MathKern bottomLeft)
+  public readonly MathKern? TopRight;
+  public readonly MathKern? TopLeft;
+  public readonly MathKern? BottomRight;
+  public readonly MathKern? BottomLeft;
+  public MathKernInfoRecord(MathKern? topRight,
+    MathKern? topLeft,
+    MathKern? bottomRight,
+    MathKern? bottomLeft)
   {
     TopRight = topLeft;
     TopLeft = topLeft;
@@ -568,11 +617,13 @@ readonly struct MathGlyphLoader
     //2. MathGlyphInfo
     //-----------------
     {    //2.1 expand italic correction
-      MathItalicsCorrectonInfoTable italicCorrection = mathTable._mathItalicCorrectionInfo;
+      MathItalicsCorrectonInfoTable italicCorrection = mathTable._mathItalicCorrectionInfo
+        ?? throw new InvalidOperationException("The MATH italic correction table has not been parsed.");
       index = 0; //reset
-      if (italicCorrection.CoverageTable != null)
+      CoverageTable? italicCoverage = italicCorrection.CoverageTable;
+      if (italicCoverage != null)
       {
-        foreach (ushort glyphIndex in italicCorrection.CoverageTable.GetExpandedValueIter())
+        foreach (ushort glyphIndex in italicCoverage.GetExpandedValueIter())
         {
           GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).ItalicCorrection = italicCorrection.ItalicCorrections[index];
           index++;
@@ -582,11 +633,13 @@ readonly struct MathGlyphLoader
     //--------
     {
       //2.2 expand top accent
-      MathTopAccentAttachmentTable topAccentAttachment = mathTable._mathTopAccentAttachmentTable;
+      MathTopAccentAttachmentTable topAccentAttachment = mathTable._mathTopAccentAttachmentTable
+        ?? throw new InvalidOperationException("The MATH top accent table has not been parsed.");
       index = 0; //reset
-      if (topAccentAttachment.CoverageTable != null)
+      CoverageTable? topAccentCoverage = topAccentAttachment.CoverageTable;
+      if (topAccentCoverage != null)
       {
-        foreach (ushort glyphIndex in topAccentAttachment.CoverageTable.GetExpandedValueIter())
+        foreach (ushort glyphIndex in topAccentCoverage.GetExpandedValueIter())
         {
           GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).TopAccentAttachment = topAccentAttachment.TopAccentAttachment[index];
           index++;
@@ -597,9 +650,10 @@ readonly struct MathGlyphLoader
     {
       //2.3 expand , expand shape
       index = 0; //reset
-      if (mathTable._extendedShapeCoverageTable != null)
+      CoverageTable? extendedShapeCoverage = mathTable._extendedShapeCoverageTable;
+      if (extendedShapeCoverage != null)
       {
-        foreach (ushort glyphIndex in mathTable._extendedShapeCoverageTable.GetExpandedValueIter())
+        foreach (ushort glyphIndex in extendedShapeCoverage.GetExpandedValueIter())
         {
           GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).IsShapeExtensible = true;
           index++;
@@ -610,10 +664,11 @@ readonly struct MathGlyphLoader
     {
       //2.4 math kern
       index = 0; //reset
-      if (mathTable._mathKernInfoCoverage != null)
+      CoverageTable? mathKernCoverage = mathTable._mathKernInfoCoverage;
+      if (mathKernCoverage != null)
       {
         MathKernInfoRecord[] kernRecs = mathTable._mathKernInfoRecords;
-        foreach (ushort glyphIndex in mathTable._mathKernInfoCoverage.GetExpandedValueIter())
+        foreach (ushort glyphIndex in mathKernCoverage.GetExpandedValueIter())
         {
           GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).SetMathKerns(kernRecs[index]);
           index++;
@@ -625,21 +680,27 @@ readonly struct MathGlyphLoader
     //-----------------
     {
 
-      MathVariantsTable mathVariants = mathTable._mathVariantsTable;
+      MathVariantsTable mathVariants = mathTable._mathVariantsTable
+        ?? throw new InvalidOperationException("The MATH variants table has not been parsed.");
 
       //3.1  vertical
       index = 0; //reset
-      foreach (ushort glyphIndex in mathVariants.vertCoverage.GetExpandedValueIter())
+      CoverageTable? verticalCoverage = mathVariants.vertCoverage;
+      if (verticalCoverage != null)
       {
-        GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).VertGlyphConstruction = mathVariants.vertConstructionTables[index];
-        index++;
+        foreach (ushort glyphIndex in verticalCoverage.GetExpandedValueIter())
+        {
+          GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).VertGlyphConstruction = mathVariants.vertConstructionTables[index];
+          index++;
+        }
       }
       //
       //3.2 horizontal
       index = 0;//reset
-      if (mathVariants.horizCoverage != null)
+      CoverageTable? horizontalCoverage = mathVariants.horizCoverage;
+      if (horizontalCoverage != null)
       {
-        foreach (ushort glyphIndex in mathVariants.horizCoverage.GetExpandedValueIter())
+        foreach (ushort glyphIndex in horizontalCoverage.GetExpandedValueIter())
         {
           GetMathGlyphOrCreateNew(mathGlyphInfos, glyphIndex).HoriGlyphConstruction = mathVariants.horizConstructionTables[index];
           index++;
@@ -658,7 +719,7 @@ class MathTable : TableEntry
   public const string _N = "MATH";
   public override string Name => _N;
   //
-  internal MathConstants _mathConstTable;
+  internal MathConstants? _mathConstTable;
 
   protected override void ReadContentFrom(BinaryReader reader)
   {
@@ -693,7 +754,9 @@ class MathTable : TableEntry
     ReadMathVariantsTable(reader);
 
     //NOTE: expose  MinConnectorOverlap via _mathConstTable
-    _mathConstTable.MinConnectorOverlap = _mathVariantsTable.MinConnectorOverlap;
+    (_mathConstTable ?? throw new InvalidOperationException("The MATH constants have not been parsed."))
+      .MinConnectorOverlap = (_mathVariantsTable ?? throw new InvalidOperationException("The MATH variants have not been parsed."))
+      .MinConnectorOverlap;
   }
   /// <summary>
   /// (1) MathConstants
@@ -865,7 +928,7 @@ class MathTable : TableEntry
   /// <summary>
   /// (2.1)
   /// </summary>
-  internal MathItalicsCorrectonInfoTable _mathItalicCorrectionInfo;
+  internal MathItalicsCorrectonInfoTable? _mathItalicCorrectionInfo;
   /// <summary>
   /// (2.1)
   /// </summary>
@@ -873,7 +936,7 @@ class MathTable : TableEntry
   void ReadMathItalicCorrectionInfoTable(BinaryReader reader)
   {
     long beginAt = reader.BaseStream.Position;
-    _mathItalicCorrectionInfo = new MathItalicsCorrectonInfoTable();
+    MathItalicsCorrectonInfoTable italicCorrectionInfo = _mathItalicCorrectionInfo = new MathItalicsCorrectonInfoTable();
     //MathItalicsCorrectionInfo Table
     //Type           Name                           Description
     //Offset16       Coverage                       Offset to Coverage table - from the beginning of MathItalicsCorrectionInfo table.
@@ -881,12 +944,12 @@ class MathTable : TableEntry
     //MathValueRecord ItalicsCorrection[ItalicsCorrectionCount]  Array of MathValueRecords defining italics correction values for each covered glyph. 
     ushort coverageOffset = reader.ReadUInt16();
     ushort italicCorrectionCount = reader.ReadUInt16();
-    _mathItalicCorrectionInfo.ItalicCorrections = reader.ReadMathValueRecords(italicCorrectionCount);
+    italicCorrectionInfo.ItalicCorrections = reader.ReadMathValueRecords(italicCorrectionCount);
     //read coverage ...
     if (coverageOffset > 0)
     {
       //may be null?, eg. found in font Linux Libertine Regular (https://sourceforge.net/projects/linuxlibertine/)
-      _mathItalicCorrectionInfo.CoverageTable = CoverageTable.CreateFrom(reader, beginAt + coverageOffset);
+      italicCorrectionInfo.CoverageTable = CoverageTable.CreateFrom(reader, beginAt + coverageOffset);
     }
   }
 
@@ -894,7 +957,7 @@ class MathTable : TableEntry
   /// <summary>
   /// (2.2)
   /// </summary>
-  internal MathTopAccentAttachmentTable _mathTopAccentAttachmentTable;
+  internal MathTopAccentAttachmentTable? _mathTopAccentAttachmentTable;
   /// <summary>
   /// (2.2)
   /// </summary>
@@ -925,15 +988,15 @@ class MathTable : TableEntry
 
 
     long beginAt = reader.BaseStream.Position;
-    _mathTopAccentAttachmentTable = new MathTopAccentAttachmentTable();
+    MathTopAccentAttachmentTable topAccentAttachmentTable = _mathTopAccentAttachmentTable = new MathTopAccentAttachmentTable();
 
     ushort coverageOffset = reader.ReadUInt16();
     ushort topAccentAttachmentCount = reader.ReadUInt16();
-    _mathTopAccentAttachmentTable.TopAccentAttachment = reader.ReadMathValueRecords(topAccentAttachmentCount);
+    topAccentAttachmentTable.TopAccentAttachment = reader.ReadMathValueRecords(topAccentAttachmentCount);
     if (coverageOffset > 0)
     {
       //may be null?, eg. found in font Linux Libertine Regular (https://sourceforge.net/projects/linuxlibertine/)
-      _mathTopAccentAttachmentTable.CoverageTable = CoverageTable.CreateFrom(reader, beginAt + coverageOffset);
+      topAccentAttachmentTable.CoverageTable = CoverageTable.CreateFrom(reader, beginAt + coverageOffset);
     }
 
   }
@@ -941,17 +1004,17 @@ class MathTable : TableEntry
   /// <summary>
   /// (2.3)
   /// </summary>
-  internal CoverageTable _extendedShapeCoverageTable;
+  internal CoverageTable? _extendedShapeCoverageTable;
 
 
   /// <summary>
   /// (2.4)
   /// </summary>
-  internal CoverageTable _mathKernInfoCoverage;
+  internal CoverageTable? _mathKernInfoCoverage;
   /// <summary>
   /// (2.4)
   /// </summary>
-  internal MathKernInfoRecord[] _mathKernInfoRecords;
+  internal MathKernInfoRecord[] _mathKernInfoRecords = Array.Empty<MathKernInfoRecord>();
   /// <summary>
   /// (2.4)
   /// </summary>
@@ -1005,7 +1068,7 @@ class MathTable : TableEntry
       //top-right
       m_kern_offset = allKernRecOffset[index];
 
-      MathKern topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
+      MathKern? topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
 
       if (m_kern_offset > 0)
       {
@@ -1083,7 +1146,7 @@ class MathTable : TableEntry
   /// <summary>
   /// (3)
   /// </summary>
-  internal MathVariantsTable _mathVariantsTable;
+  internal MathVariantsTable? _mathVariantsTable;
   /// <summary>
   /// (3) MathVariants
   /// </summary>
@@ -1128,11 +1191,11 @@ class MathTable : TableEntry
     //Offset16      VertGlyphConstruction[VertGlyphCount]  Array of offsets to MathGlyphConstruction tables - from the beginning of the MathVariants table, for shapes growing in vertical direction.
     //Offset16      HorizGlyphConstruction[HorizGlyphCount]    Array of offsets to MathGlyphConstruction tables - from the beginning of the MathVariants table, for shapes growing in horizontal direction.
 
-    _mathVariantsTable = new MathVariantsTable();
+    MathVariantsTable mathVariantsTable = _mathVariantsTable = new MathVariantsTable();
 
     long beginAt = reader.BaseStream.Position;
     //
-    _mathVariantsTable.MinConnectorOverlap = reader.ReadUInt16();
+    mathVariantsTable.MinConnectorOverlap = reader.ReadUInt16();
     //
     ushort vertGlyphCoverageOffset = reader.ReadUInt16();
     ushort horizGlyphCoverageOffset = reader.ReadUInt16();
@@ -1144,20 +1207,20 @@ class MathTable : TableEntry
 
     if (vertGlyphCoverageOffset > 0)
     {
-      _mathVariantsTable.vertCoverage = CoverageTable.CreateFrom(reader, beginAt + vertGlyphCoverageOffset);
+      mathVariantsTable.vertCoverage = CoverageTable.CreateFrom(reader, beginAt + vertGlyphCoverageOffset);
     }
 
     if (horizGlyphCoverageOffset > 0)
     {
       //may be null?, eg. found in font Linux Libertine Regular (https://sourceforge.net/projects/linuxlibertine/)
-      _mathVariantsTable.horizCoverage = CoverageTable.CreateFrom(reader, beginAt + horizGlyphCoverageOffset);
+      mathVariantsTable.horizCoverage = CoverageTable.CreateFrom(reader, beginAt + horizGlyphCoverageOffset);
     }
 
     //read math construction table
 
     //(3.1)
     //vertical
-    var vertGlyphConstructionTables = _mathVariantsTable.vertConstructionTables = new MathGlyphConstruction[vertGlyphCount];
+    var vertGlyphConstructionTables = mathVariantsTable.vertConstructionTables = new MathGlyphConstruction[vertGlyphCount];
     for (int i = 0; i < vertGlyphCount; ++i)
     {
       reader.BaseStream.Position = beginAt + vertGlyphConstructions[i];
@@ -1166,7 +1229,7 @@ class MathTable : TableEntry
 
     //(3.2)
     //horizon
-    var horizGlyphConstructionTables = _mathVariantsTable.horizConstructionTables = new MathGlyphConstruction[horizGlyphCount];
+    var horizGlyphConstructionTables = mathVariantsTable.horizConstructionTables = new MathGlyphConstruction[horizGlyphCount];
     for (int i = 0; i < horizGlyphCount; ++i)
     {
       reader.BaseStream.Position = beginAt + horizonGlyphConstructions[i];
@@ -1296,22 +1359,22 @@ class MathItalicsCorrectonInfoTable
   //    When positioning limits on an N-ary operator (e.g., integral sign), the horizontal position of the upper limit is moved to the right by ½ of the italics correction, while the position of the lower limit is moved to the left by the same distance.
   //    When positioning superscripts and subscripts, their default horizontal positions are also different by the amount of the italics correction of the preceding glyph.
 
-  public MathValueRecord[] ItalicCorrections;
-  public CoverageTable CoverageTable;
+  public MathValueRecord[] ItalicCorrections = Array.Empty<MathValueRecord>();
+  public CoverageTable? CoverageTable;
 
 }
 class MathTopAccentAttachmentTable
 {
-  public MathValueRecord[] TopAccentAttachment;
-  public CoverageTable CoverageTable;
+  public MathValueRecord[] TopAccentAttachment = Array.Empty<MathValueRecord>();
+  public CoverageTable? CoverageTable;
 }
 
 
 class MathVariantsTable
 {
   public ushort MinConnectorOverlap;
-  public CoverageTable vertCoverage;
-  public CoverageTable horizCoverage;
-  public MathGlyphConstruction[] vertConstructionTables;
-  public MathGlyphConstruction[] horizConstructionTables;
+  public CoverageTable? vertCoverage;
+  public CoverageTable? horizCoverage;
+  public MathGlyphConstruction[] vertConstructionTables = Array.Empty<MathGlyphConstruction>();
+  public MathGlyphConstruction[] horizConstructionTables = Array.Empty<MathGlyphConstruction>();
 }

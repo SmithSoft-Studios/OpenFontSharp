@@ -62,7 +62,12 @@ namespace OpenFontSharp.Tables.CFF
         public override string Name => _N;
         //
 
-        Cff1FontSet _cff1FontSet;
+        Cff1FontSet? _parsedFontSet;
+        Cff1FontSet _cff1FontSet
+        {
+            get => _parsedFontSet ?? throw new NullReferenceException("The CFF font set has not been parsed.");
+            set => _parsedFontSet = value;
+        }
         //
         internal Cff1FontSet Cff1FontSet => _cff1FontSet;
         protected override void ReadContentFrom(BinaryReader reader)

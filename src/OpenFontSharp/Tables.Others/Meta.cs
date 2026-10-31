@@ -44,11 +44,11 @@ namespace OpenFontSharp.Tables.Others
         /// <summary>
         /// dlng tags
         /// </summary>
-        public string[] DesignLanguageTags { get; private set; }
+        public string[]? DesignLanguageTags { get; private set; }
         /// <summary>
         /// slng tags
         /// </summary>
-        public string[] SupportedLanguageTags { get; private set; }
+        public string[]? SupportedLanguageTags { get; private set; }
         protected override void ReadContentFrom(BinaryReader reader)
         {
             //found in some fonts (eg tahoma)

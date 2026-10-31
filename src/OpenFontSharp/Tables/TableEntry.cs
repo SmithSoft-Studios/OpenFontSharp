@@ -10,18 +10,43 @@ namespace OpenFontSharp.Tables
     /// </summary>
     public abstract class TableEntry
     {
+        TableHeader? _header;
+
+        /// <summary>
+        /// Initializes a font table entry.
+        /// </summary>
         public TableEntry()
         {
         }
-        internal TableHeader Header { get; set; }
+
+        internal TableHeader Header
+        {
+            get => _header ?? throw new NullReferenceException("The table header has not been assigned.");
+            set => _header = value;
+        }
+
+        /// <summary>
+        /// Reads the table's contents from the font data stream.
+        /// </summary>
+        /// <param name="reader">The stream positioned at the beginning of this table's data.</param>
         protected abstract void ReadContentFrom(BinaryReader reader);
+
+        /// <summary>
+        /// Gets the four-character tag identifying this table.
+        /// </summary>
         public abstract string Name { get; }
+
         internal void LoadDataFrom(BinaryReader reader)
         {
             //ensure that we always start at the correct offset***
             reader.BaseStream.Seek(this.Header.Offset, SeekOrigin.Begin);
             ReadContentFrom(reader);
         }
+
+        /// <summary>
+        /// Gets the length of this table in bytes.
+        /// </summary>
+        /// <exception cref="NullReferenceException">The table header has not been assigned.</exception>
         public uint TableLength => this.Header.Length;
 
     }

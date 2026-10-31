@@ -18,7 +18,9 @@ public class OpenFontReaderTests
         foreach (var font in ttfFonts)
         {
             using var stream = File.OpenRead(font);
-            previews.Add(reader.ReadPreview(stream));
+            var preview = reader.ReadPreview(stream);
+            Assert.NotNull(preview);
+            previews.Add(preview);
         }
 
         previews.Count.Should().Be(12);
@@ -35,7 +37,9 @@ public class OpenFontReaderTests
         foreach (var font in ttfFonts)
         {
             using var stream = File.OpenRead(font);
-            typefaces.Add(reader.Read(stream));
+            var typeface = reader.Read(stream);
+            Assert.NotNull(typeface);
+            typefaces.Add(typeface);
         }
 
         typefaces.Count.Should().Be(12);
@@ -56,6 +60,7 @@ public class OpenFontReaderTests
         using var stream = File.OpenRead(otfPath);
         var typeface = reader.Read(stream);
 
+        Assert.NotNull(typeface);
         typeface.Should().NotBeNull();
         typeface.PostScriptName.Should().NotBeNullOrEmpty();
     }
