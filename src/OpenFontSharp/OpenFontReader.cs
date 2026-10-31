@@ -240,10 +240,18 @@ namespace OpenFontSharp
             long resumePosition = stream.Position;
             try
             {
-                stream.Position = streamStartOffset;
+                stream.Position = 0;
                 using var buffer = new MemoryStream();
                 stream.CopyTo(buffer);
-                return buffer.ToArray();
+                byte[] all = buffer.ToArray();
+
+                if (streamStartOffset <= 0)
+                    return all;
+
+                // A font inside a collection: its table offsets are relative to the
+                // start of the collection, so the bytes from streamStartOffset onward are
+                // not a font on their own. Copy the member out into a standalone font.
+                return Subsetting.SfntContainers.ExtractSfntAt(all, streamStartOffset);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {

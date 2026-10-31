@@ -1,66 +1,206 @@
 namespace OpenFontSharp.Subsetting;
 
 /// <summary>
-/// Subsets a TrueType font by retaining only the specified glyphs, remapping glyph ids
+/// Subsets a font by retaining only the specified glyphs, remapping glyph ids
 /// contiguously, and rebuilding the affected tables.
 /// </summary>
 /// <remarks>
 /// <para>
 /// The subset copies glyph records verbatim from the source font. Tables that describe
-/// the font as a whole (head, hhea, OS/2, cmap, name, post) are copied from the source
-/// and patched where the subset changes them, rather than synthesised, so nothing the
-/// original declared — units per em, licensing bits, style — is silently altered.
+/// the font as a whole (head, hhea, OS/2, name) are copied from the source and patched
+/// where the subset changes them, rather than synthesised, so nothing the original
+/// declared — units per em, licensing bits, style — is silently altered.
 /// </para>
 /// <para>
-/// Subsetting requires the original font bytes. The <see cref="Typeface"/>-only overload
-/// cannot copy outlines, so it returns the font unchanged rather than producing a font
-/// whose glyphs are blank.
+/// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
+/// their default instance), name-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0
+/// wrapping either, and one font of a collection via
+/// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
+/// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
+/// hand back a font that merely looks valid.
 /// </para>
 /// </remarks>
 public static class FontSubsetter
 {
     /// <summary>
     /// Subsets a font from its raw bytes, retaining only the specified glyphs.
-    /// Returns the font unchanged when it cannot be subset safely.
     /// </summary>
+    /// <remarks>
+    /// The output is always a plain sfnt font (never WOFF). When every glyph, or no
+    /// is requested, the font is returned whole with an empty
+    /// <see cref="SubsetResult.GlyphIdMap"/>.
+    /// </remarks>
+    /// <exception cref="NotSupportedException">
+    /// The font's format cannot be subset (collection without an index, WOFF2, CFF2,
+    /// CID-keyed CFF, or unrecognised data).
+    /// </exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
     {
         ArgumentNullException.ThrowIfNull(fontData);
         ArgumentNullException.ThrowIfNull(usedGlyphIds);
 
+        switch (SfntContainers.Detect(fontData))
+        {
+            case FontContainerFormat.TrueType:
+            case FontContainerFormat.OpenTypeCff:
+                return SubsetSfnt(fontData, usedGlyphIds);
+
+            case FontContainerFormat.Woff:
+                byte[] sfnt;
+                try
+                {
+                    sfnt = SfntContainers.DecodeWoff(fontData);
+                }
+                catch (Exception ex) when (ex is InvalidDataException or IOException)
+                {
+                    throw new NotSupportedException("The WOFF font could not be decoded, so it cannot be subset.", ex);
+                }
+                return SubsetSfnt(sfnt, usedGlyphIds);
+
+            case FontContainerFormat.Collection:
+                throw new NotSupportedException(
+                    "The data is a font collection (TTC). Subset one of its fonts with " +
+                    "FontSubsetter.Subset(fontData, fontIndex, usedGlyphIds).");
+
+            case FontContainerFormat.Woff2:
+                throw new NotSupportedException(
+                    "WOFF2 fonts cannot be subset: decoding WOFF2's transformed glyf/loca " +
+                    "tables is not implemented. Convert the font to TTF/OTF first.");
+
+            default:
+                throw new NotSupportedException(
+                    "The data is not a recognised font (expected a TrueType, OpenType, TTC or WOFF signature).");
+        }
+    }
+
+    /// <summary>
+    /// Subsets one font of a TrueType/OpenType collection (TTC).
+    /// </summary>
+    /// <exception cref="NotSupportedException">The data is not a collection, or the chosen font cannot be subset.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="fontIndex"/> is not in the collection.</exception>
+    public static SubsetResult Subset(byte[] fontData, int fontIndex, ISet<ushort> usedGlyphIds)
+    {
+        ArgumentNullException.ThrowIfNull(fontData);
+        ArgumentNullException.ThrowIfNull(usedGlyphIds);
+
+        if (SfntContainers.Detect(fontData) != FontContainerFormat.Collection)
+            throw new NotSupportedException("A font index can only be given for a font collection (TTC).");
+
+        byte[] member;
+        try
+        {
+            member = SfntContainers.ExtractFromCollection(fontData, fontIndex);
+        }
+        catch (InvalidDataException ex)
+        {
+            throw new NotSupportedException("The font collection is malformed, so it cannot be subset.", ex);
+        }
+
+        return Subset(member, usedGlyphIds);
+    }
+
+    /// <summary>
+    /// Subsets a parsed font from the original bytes it was read from.
+    /// </summary>
+    /// <exception cref="NotSupportedException">
+    /// The typeface holds no original bytes (it was read from a non-seekable stream), or
+    /// its format cannot be subset.
+    /// </exception>
+    public static SubsetResult Subset(Typeface typeface, ISet<ushort> usedGlyphIds)
+    {
+        ArgumentNullException.ThrowIfNull(typeface);
+
+        var original = typeface.GetOriginalFontData();
+        if (original is not { Length: > 0 })
+        {
+            throw new NotSupportedException(
+                "The typeface does not hold its original font bytes (it was read from a " +
+                "non-seekable stream), and outlines cannot be copied from the parsed model. " +
+                "Read the font from a seekable stream or pass the font bytes instead.");
+        }
+
+        return Subset(original, usedGlyphIds);
+    }
+
+    private static SubsetResult SubsetSfnt(byte[] fontData, ISet<ushort> usedGlyphIds)
+    {
         var tables = RawTtfTables.TryRead(fontData);
         if (tables is null)
         {
-            // CFF outlines, or a font we cannot parse. Returning it unchanged keeps the
-            // document correct; the caller sees an empty map and embeds the whole font.
+            // A TrueType-flavoured font without usable glyf/loca (bitmap-only, or a
+            // table directory we cannot follow). Returned whole, its outlines — if
+            // any — are intact; the caller sees an empty map and embeds the full font.
             return Unchanged(fontData);
         }
 
+        return tables.IsCff
+            ? SubsetCff(tables, usedGlyphIds)
+            : SubsetTrueType(tables, usedGlyphIds);
+    }
+
+    private static SubsetResult SubsetCff(RawTtfTables tables, ISet<ushort> usedGlyphIds)
+    {
+        if (tables.Has("CFF2") || !tables.Has("CFF "))
+            throw new NotSupportedException("Fonts with CFF2 outlines (variable OpenType/CFF) cannot be subset.");
+
+        // CFF glyphs are self-contained (seac composites are rejected by the builder),
+        // so the retained set is .notdef plus the requested glyphs.
+        var needed = new SortedSet<ushort> { 0 };
+        foreach (var glyphId in usedGlyphIds)
+        {
+            if (glyphId < tables.NumGlyphs)
+                needed.Add(glyphId);
+        }
+
+        var retained = needed.ToList();
+        if (retained.Count >= tables.NumGlyphs)
+            return Unchanged(tables);
+
+        var glyphIdMap = BuildGlyphIdMap(retained);
+
+        var writer = new TtfWriter(TtfWriter.CffVersion);
+        writer.AddTable("head", BuildHead(tables, longLoca: false));
+        writer.AddTable("CFF ", CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained));
+
+        return Finish(writer, tables, retained, glyphIdMap);
+    }
+
+    private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds)
+    {
         var retained = GlyfSubsetBuilder.CollectGlyphs(tables, usedGlyphIds);
-        if (retained.Count == 0 || retained.Count >= tables.NumGlyphs)
-            return Unchanged(fontData);
+        if (retained.Count >= tables.NumGlyphs)
+            return Unchanged(tables);
 
-        var glyphIdMap = new Dictionary<ushort, ushort>(retained.Count);
-        for (int i = 0; i < retained.Count; i++)
-            glyphIdMap[retained[i]] = (ushort)i;
-
+        var glyphIdMap = BuildGlyphIdMap(retained);
         var (glyf, loca) = GlyfSubsetBuilder.Build(tables, retained, glyphIdMap);
 
         var writer = new TtfWriter();
-        writer.AddTable("head", BuildHead(tables));
-        writer.AddTable("hhea", BuildHhea(tables, retained.Count));
-        writer.AddTable("maxp", BuildMaxp(tables, retained.Count));
-        writer.AddTable("hmtx", BuildHmtx(tables, retained));
+        writer.AddTable("head", BuildHead(tables, longLoca: true));
         writer.AddTable("glyf", glyf);
         writer.AddTable("loca", loca);
 
-        // Carried across unchanged when present: these describe the font, not its glyphs.
-        CopyIfPresent(writer, tables, "OS/2");
-        CopyIfPresent(writer, tables, "name");
+        // Hinting is glyph-independent and survives subsetting unchanged.
         CopyIfPresent(writer, tables, "cvt ");
         CopyIfPresent(writer, tables, "fpgm");
         CopyIfPresent(writer, tables, "prep");
         CopyIfPresent(writer, tables, "gasp");
+
+        // Variation tables (fvar, gvar, HVAR, ...) are deliberately not copied: the
+        // glyf outlines are the default instance, and that is what the subset holds.
+        return Finish(writer, tables, retained, glyphIdMap);
+    }
+
+    /// <summary>Adds the tables shared by both outline formats and builds the result.</summary>
+    private static SubsetResult Finish(
+        TtfWriter writer, RawTtfTables tables, IReadOnlyList<ushort> retained, Dictionary<ushort, ushort> glyphIdMap)
+    {
+        writer.AddTable("hhea", BuildHhea(tables, retained.Count));
+        writer.AddTable("maxp", BuildMaxp(tables, retained.Count));
+        writer.AddTable("hmtx", BuildHmtx(tables, retained));
+
+        // Carried across unchanged when present: these describe the font, not its glyphs.
+        CopyIfPresent(writer, tables, "OS/2");
+        CopyIfPresent(writer, tables, "name");
 
         // post is replaced with a minimal version 3 table: glyph names are large and a
         // PDF embedding never needs them.
@@ -70,29 +210,20 @@ public static class FontSubsetter
         // not consult it, but a font carrying a stale cmap is invalid on its own terms.
         writer.AddTable("cmap", BuildIdentityCmap(retained, glyphIdMap));
 
-        var subsetData = writer.Build();
-
         return new SubsetResult(
-            FontData: subsetData,
+            FontData: writer.Build(),
             GlyphIdMap: glyphIdMap,
             RetainedGlyphCount: retained.Count,
             OriginalGlyphCount: tables.NumGlyphs,
             SubsetPrefix: GenerateSubsetPrefix());
     }
 
-    /// <summary>
-    /// Subsets a parsed font. Only works when the typeface can supply its original
-    /// bytes; otherwise the font is returned unchanged, because outlines cannot be
-    /// copied from the parsed model without losing information.
-    /// </summary>
-    public static SubsetResult Subset(Typeface typeface, ISet<ushort> usedGlyphIds)
+    private static Dictionary<ushort, ushort> BuildGlyphIdMap(IReadOnlyList<ushort> retained)
     {
-        ArgumentNullException.ThrowIfNull(typeface);
-
-        var original = typeface.GetOriginalFontData();
-        return original is { Length: > 0 }
-            ? Subset(original, usedGlyphIds)
-            : Unchanged(original ?? []);
+        var glyphIdMap = new Dictionary<ushort, ushort>(retained.Count);
+        for (int i = 0; i < retained.Count; i++)
+            glyphIdMap[retained[i]] = (ushort)i;
+        return glyphIdMap;
     }
 
     /// <summary>Generates a six-character subset prefix per the PDF spec, e.g. "ABCDEF+".</summary>
@@ -110,6 +241,8 @@ public static class FontSubsetter
     /// subset was produced; the counts still report the real glyph total, because an
     /// unchanged font retains every glyph it had.
     /// </summary>
+    private static SubsetResult Unchanged(RawTtfTables tables) => Unchanged(tables.FontData);
+
     private static SubsetResult Unchanged(byte[] fontData)
     {
         int glyphCount = RawTtfTables.TryReadGlyphCount(fontData);
@@ -128,17 +261,20 @@ public static class FontSubsetter
             writer.AddTable(tag, tables.TableBytes(tag));
     }
 
-    /// <summary>Copies head, forcing long loca offsets to match what the builder writes.</summary>
-    private static byte[] BuildHead(RawTtfTables tables)
+    /// <summary>Copies head, optionally forcing long loca offsets to match what the glyf builder writes.</summary>
+    private static byte[] BuildHead(RawTtfTables tables, bool longLoca)
     {
         var head = tables.TableBytes("head");
 
         // checkSumAdjustment must be zeroed; the writer recomputes it.
         head[8] = head[9] = head[10] = head[11] = 0;
 
-        // indexToLocFormat = 1 (long offsets)
-        head[50] = 0;
-        head[51] = 1;
+        if (longLoca)
+        {
+            // indexToLocFormat = 1 (long offsets)
+            head[50] = 0;
+            head[51] = 1;
+        }
 
         return head;
     }
