@@ -13,8 +13,9 @@ namespace OpenFontSharp.Subsetting;
 /// </para>
 /// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
-/// their default instance), WOFF 1.0 wrapping either, and one font of a collection
-/// via <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
+/// their default instance), name-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0
+/// wrapping either, and one font of a collection via
+/// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
 /// hand back a font that merely looks valid.
 /// </para>
@@ -133,19 +134,35 @@ public static class FontSubsetter
         }
 
         return tables.IsCff
-            ? SubsetCff(fontData, tables, usedGlyphIds)
+            ? SubsetCff(tables, usedGlyphIds)
             : SubsetTrueType(tables, usedGlyphIds);
     }
 
-    private static SubsetResult SubsetCff(byte[] fontData, RawTtfTables tables, ISet<ushort> usedGlyphIds)
+    private static SubsetResult SubsetCff(RawTtfTables tables, ISet<ushort> usedGlyphIds)
     {
-        _ = fontData;
-        _ = usedGlyphIds;
-
-        if (tables.Has("CFF2"))
+        if (tables.Has("CFF2") || !tables.Has("CFF "))
             throw new NotSupportedException("Fonts with CFF2 outlines (variable OpenType/CFF) cannot be subset.");
 
-        throw new NotSupportedException("Fonts with CFF outlines (OpenType 'OTTO') cannot be subset yet.");
+        // CFF glyphs are self-contained (seac composites are rejected by the builder),
+        // so the retained set is .notdef plus the requested glyphs.
+        var needed = new SortedSet<ushort> { 0 };
+        foreach (var glyphId in usedGlyphIds)
+        {
+            if (glyphId < tables.NumGlyphs)
+                needed.Add(glyphId);
+        }
+
+        var retained = needed.ToList();
+        if (retained.Count >= tables.NumGlyphs)
+            return Unchanged(tables);
+
+        var glyphIdMap = BuildGlyphIdMap(retained);
+
+        var writer = new TtfWriter(TtfWriter.CffVersion);
+        writer.AddTable("head", BuildHead(tables, longLoca: false));
+        writer.AddTable("CFF ", CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained));
+
+        return Finish(writer, tables, retained, glyphIdMap);
     }
 
     private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds)

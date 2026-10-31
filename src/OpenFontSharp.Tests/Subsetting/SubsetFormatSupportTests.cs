@@ -51,13 +51,39 @@ public class SubsetFormatSupportTests
     }
 
     [Fact]
-    public void OpenTypeCff_ThrowsNotSupported()
+    public void OpenTypeCff_IsSubsetFaithfully()
     {
         var original = FontFiles.Load(FontFiles.GreatVibes);
 
-        var act = () => FontSubsetter.Subset(FontFiles.Bytes(FontFiles.GreatVibes), FontFiles.GlyphsFor(original, FontFiles.SampleText));
+        var result = FontSubsetter.Subset(FontFiles.Bytes(FontFiles.GreatVibes), FontFiles.GlyphsFor(original, FontFiles.SampleText));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*CFF*");
+        SubsetVerifier.VerifyFaithful(original, result);
+        SfntInspector.Parse(result.FontData).SfntVersion.Should().Be(0x4F54544Fu, "a CFF font stays 'OTTO'");
+        result.RetainedGlyphCount.Should().BeLessThan(original.GlyphCount);
+    }
+
+    [Fact]
+    public void OpenTypeCff_KeepsGlyphNames()
+    {
+        // The rebuilt charset must name each retained glyph as the original did.
+        var original = FontFiles.Load(FontFiles.GreatVibes);
+        var glyphs = FontFiles.GlyphsFor(original, "Great Vibes");
+
+        var result = FontSubsetter.Subset(original, glyphs);
+        var subset = FontFiles.Load(result.FontData);
+
+        foreach (var (oldId, newId) in result.GlyphIdMap)
+            subset.GetGlyph(newId).GetCff1GlyphData().Name.Should().Be(original.GetGlyph(oldId).GetCff1GlyphData().Name);
+    }
+
+    [Fact]
+    public void Woff_Cff_IsDecodedAndSubsetFaithfully()
+    {
+        var original = FontFiles.Load(FontFiles.GreatVibes);
+
+        var result = FontSubsetter.Subset(FontFiles.Bytes(FontFiles.GreatVibesWoff), FontFiles.GlyphsFor(original, FontFiles.SampleText));
+
+        SubsetVerifier.VerifyFaithful(original, result);
     }
 
     [Fact]
