@@ -4,6 +4,16 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- Subsetting of OpenType fonts with CFF outlines (`.otf`), WOFF 1.0 fonts, and one font of a collection (`FontSubsetter.Subset(fontData, fontIndex, usedGlyphIds)`). The README has a table of the formats the subsetter supports.
+
+### Changed
+- `FontSubsetter` throws `NotSupportedException` for formats it cannot subset (WOFF2, CFF2, CID-keyed CFF, a collection without a font index, unrecognised data, a typeface without its original bytes). Before, it returned the input unchanged.
+
+### Fixed
+- A font read from a collection with `OpenFontReader.Read(stream, offset)` kept bytes that were not a valid standalone font, so subsetting it silently produced a broken font. `GetOriginalFontData()` now returns the member as a standalone font.
+- Subset fonts now carry a valid `head.checkSumAdjustment` (it was left at zero).
+
 ## [1.1.1]
 
 ### Fixed
