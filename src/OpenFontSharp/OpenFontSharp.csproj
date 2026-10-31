@@ -6,7 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>1.1.0</Version>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <Description>OpenFontSharp is a Lightweight Pure C# library that allows Reading various Font type information</Description>
     <PackageTags>c#;font;reader;font information;font header;.net 8</PackageTags>
     <RepositoryType>git</RepositoryType>
