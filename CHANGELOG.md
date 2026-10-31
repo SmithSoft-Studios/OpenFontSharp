@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.2.0]
+
 ### Added
 - XML API documentation shipped with the library, product workflows and examples in the README, and nullable migration guidance in [compatibility notes](docs/COMPATIBILITY.md).
 - Regression checks for Release nullable/XML warning cleanliness, optional font data, trim/restore, and documentation examples.
