@@ -1,8 +1,7 @@
 namespace OpenFontSharp.Subsetting;
 
 /// <summary>
-/// Reads the sfnt table directory of a TrueType font so subsetting can work on raw
-/// table bytes.
+/// Reads the sfnt table directory of a font so subsetting can work on raw table bytes.
 /// </summary>
 /// <remarks>
 /// Subsetting has to copy glyph outlines verbatim. Re-serialising outlines from parsed
@@ -17,8 +16,14 @@ public sealed class RawTtfTables
 
     private RawTtfTables(byte[] data) => _data = data;
 
+    /// <summary>The complete font file these tables were read from.</summary>
+    public byte[] FontData => _data;
+
     /// <summary>Number of glyphs declared by the maxp table.</summary>
     public int NumGlyphs { get; private set; }
+
+    /// <summary>True when the font has CFF or CFF2 outlines ('OTTO') rather than glyf/loca.</summary>
+    public bool IsCff { get; private set; }
 
     /// <summary>True when loca uses 32-bit offsets (head.indexToLocFormat = 1).</summary>
     public bool LongLoca { get; private set; }
@@ -28,7 +33,8 @@ public sealed class RawTtfTables
 
     /// <summary>
     /// Parses the table directory, or returns null when the font is not a usable
-    /// TrueType outline font (CFF fonts and malformed files included).
+    /// outline font. TrueType fonts need head, maxp, glyf and loca; CFF fonts ('OTTO')
+    /// need head, maxp and a 'CFF ' or 'CFF2' table.
     /// </summary>
     public static RawTtfTables? TryRead(byte[] fontData)
     {
@@ -43,9 +49,10 @@ public sealed class RawTtfTables
 
             uint sfntVersion = ReadU32(fontData, 0);
 
-            // 0x00010000 is TrueType outlines; "true" is the legacy Apple tag. "OTTO"
-            // is CFF, which this subsetter does not handle.
-            if (sfntVersion != 0x00010000 && sfntVersion != 0x74727565)
+            // 0x00010000 is TrueType outlines; "true" is the legacy Apple tag; "OTTO"
+            // is CFF.
+            tables.IsCff = sfntVersion == 0x4F54544F;
+            if (sfntVersion != 0x00010000 && sfntVersion != 0x74727565 && !tables.IsCff)
                 return null;
 
             int numTables = ReadU16(fontData, 4);
@@ -66,7 +73,10 @@ public sealed class RawTtfTables
                 tables._tables[tag] = (offset, length);
             }
 
-            if (!tables.Has("head") || !tables.Has("maxp") || !tables.Has("loca") || !tables.Has("glyf"))
+            if (!tables.Has("head") || !tables.Has("maxp"))
+                return null;
+
+            if (tables.IsCff ? !tables.Has("CFF ") && !tables.Has("CFF2") : !tables.Has("loca") || !tables.Has("glyf"))
                 return null;
 
             var head = tables.Span("head");
@@ -83,7 +93,7 @@ public sealed class RawTtfTables
             if (tables.NumGlyphs <= 0)
                 return null;
 
-            if (!tables.ReadLoca())
+            if (!tables.IsCff && !tables.ReadLoca())
                 return null;
 
             return tables;
