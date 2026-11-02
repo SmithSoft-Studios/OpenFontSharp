@@ -21,7 +21,7 @@ The NuGet package includes XML API documentation for IntelliSense. See [compatib
 | Unshaped advance measurement | `TextMeasurer.MeasureWidth(Typeface, ...)` | Estimating simple text widths in points or pixels |
 | Basic glyph substitution and legacy kerning | `BasicLatinShaper` | Simple Latin text in a document pipeline |
 | Glyph subsetting and ID remapping | `FontSubsetter` | Reducing embedded font size for glyph-addressed PDF fonts |
-| ToUnicode CMap generation | `ToUnicodeCMapBuilder` | Mapping PDF character IDs back to BMP Unicode characters |
+| ToUnicode CMap generation | `ToUnicodeCMapBuilder` | Mapping two-byte PDF character IDs to Unicode scalar values, including supplementary planes |
 | Trim and restore | `TypefaceExtensions.TrimDown` / `RestoreUp` | Keeping metrics while temporarily unloading outlines |
 
 This is not a PDF writer, a complete text-layout engine, or a ready-made rasterizer. It exposes drawing callbacks and parsed font tables, but your application supplies rendering, line breaking, bidirectional layout, and complex-script shaping.
@@ -187,7 +187,7 @@ File.WriteAllBytes("Hello-subset.ttf", subset.FontData);
 File.WriteAllBytes("Hello-ToUnicode.txt", ToUnicodeCMapBuilder.Build(cidToUnicode));
 ```
 
-Your PDF writer must use the same remapped IDs as CIDs (or supply a matching CID-to-GID mapping), create the font dictionaries and width entries, and embed both streams. Multiple characters can map to one glyph; choose the intended extraction mapping in your application. The current CMap builder accepts one integer per CID and formats it as hexadecimal; use BMP scalar values only, not supplementary-plane values or multi-character ligature mappings. Creating correct UTF-16 sequences for those cases requires a richer mapping implementation outside this helper.
+Your PDF writer must use the same remapped IDs as CIDs (or supply a matching CID-to-GID mapping), create the font dictionaries and width entries, and embed both streams. Multiple characters can map to one glyph; choose the intended extraction mapping in your application. The CMap builder accepts source IDs from 0 through 65535 and one Unicode scalar value per source ID. Destinations use UTF-16BE bytes without a BOM: U+1F600 becomes `<D83DDE00>`, not `<1F600>`. Surrogate code points and out-of-range values are rejected. Multi-character ligature mappings still require a richer mapping API outside this helper. The BMP example above does not demonstrate supplementary-text shaping; the basic shaper's separate limitations still apply.
 
 Respect the font's embedding permissions and license. Subsetting retains OS/2 licensing bits; it does not authorize embedding.
 
