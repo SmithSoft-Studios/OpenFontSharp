@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Fixed
+- ToUnicode CMap destinations encode supplementary Unicode scalars as UTF-16BE surrogate pairs without a BOM instead of overlong scalar hex values. Source IDs must fit the declared two-byte codespace, and invalid Unicode scalars are explicitly rejected. Existing BMP mappings and 100-entry blocks are retained (SmithSoft-Studios/TrinePDF#341 E7).
+
 ## [1.2.0]
 
 ### Added
