@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>1.2.1</Version>
+    <Version>1.2.2</Version>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
@@ -40,6 +40,14 @@
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
+    <None Include="..\..\THIRD-PARTY-NOTICES.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+    <None Include="..\..\licenses\*.txt">
+      <Pack>True</Pack>
+      <PackagePath>licenses\</PackagePath>
+    </None>
   </ItemGroup>
 
 
