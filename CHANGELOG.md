@@ -4,6 +4,12 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.2.2]
+
+### Licensing
+- Added `THIRD-PARTY-NOTICES.md` and the Apache-2.0, MIT, FreeType and Adobe Glyph List licence texts under `licenses/`, with a statement of changes to imported files, and ship them in the NuGet package.
+- `LICENSE.md` now distinguishes SmithSoft original code (MIT) from code imported from Typography.OpenFont and the projects it credits, which keep the licences in their file headers. The README licence section was corrected to match.
+
 ### Fixed
 - ToUnicode CMap destinations encode supplementary Unicode scalars as UTF-16BE surrogate pairs without a BOM instead of overlong scalar hex values. Source IDs must fit the declared two-byte codespace, and invalid Unicode scalars are explicitly rejected. Existing BMP mappings and 100-entry blocks are retained (SmithSoft-Studios/TrinePDF#341 E7).
 
