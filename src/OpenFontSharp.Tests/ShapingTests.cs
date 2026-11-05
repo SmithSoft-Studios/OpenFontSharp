@@ -19,6 +19,33 @@ public class ShapingTests
         return typeface;
     }
 
+    private static Typeface LoadFont(params string[] relative)
+    {
+        var path = Path.Combine(new[] { AppContext.BaseDirectory, "..", "..", "..", "Resources", "Fonts" }.Concat(relative).ToArray());
+        using var stream = File.OpenRead(path);
+        var typeface = new OpenFontReader().Read(stream);
+        Assert.NotNull(typeface);
+        return typeface;
+    }
+
+    [Theory]
+    [InlineData("AV")]
+    [InlineData("Hello")]
+    [InlineData("Wa")]
+    public void BasicLatinShaper_PlainText_KeepsCmapGlyphsWhenNoLigatureApplies(string text)
+    {
+        // Regression: every GSUB lookup used to be applied, not only the liga/clig features, which replaced
+        // ordinary letters with unrelated alternate glyphs.
+        foreach (var font in new[] { LoadFont("TTF", "Roboto", "Roboto-Regular.ttf"), LoadFont("TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf") })
+        {
+            var expected = text.Select(c => font.GetGlyphIndex(c)).ToArray();
+
+            var result = BasicLatinShaper.Shape(font, text);
+
+            result.GlyphIds.Should().Equal(expected);
+        }
+    }
+
     [Fact]
     public void ScriptDetector_LatinText_DoesNotRequireComplexShaping()
     {

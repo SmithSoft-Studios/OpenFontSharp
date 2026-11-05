@@ -113,6 +113,14 @@ if (ticket is not null)
 
 Do not substitute empty arrays for missing outlines: null distinguishes CFF, bitmap, or trimmed glyphs from loaded TrueType glyphs. Color, SVG, and bitmap data can also be unavailable or unloaded. Check the actual data and trim state before using format-specific operations.
 
+### Colour glyph data (no rendering)
+
+`GetColorLayers(glyphId)` returns read-only COLR v0 layers in back-to-front painting order. Each `ColorLayer` contains a `GlyphId` and `PaletteIndex`; index `0xFFFF` means the application's foreground colour. Missing or trimmed layers return an empty list.
+
+`PaletteCount` and `GetPalette(index)` expose CPAL v0/v1 palettes as read-only `PaletteColor` entries (`Blue`, `Green`, `Red`, `Alpha`, in BGRA order with sRGB colour components). Invalid palette indices, including when palettes are absent or trimmed, throw `ArgumentOutOfRangeException`. CPAL v1 palette labels and type metadata are not exposed. COLR versions other than 0 throw a version-specific `OpenFontNotSupportedException`.
+
+Bitmap-only fonts use the first strike through `GetGlyph` and `ReadBitmapContent`; outlines still take priority in hybrid fonts. See [bitmap compatibility and limits](docs/COMPATIBILITY.md#colour-and-bitmap-tables) for supported formats and malformed-data handling. This exposes encoded data and metrics, not a rasteriser.
+
 ### Web-font containers
 
 WOFF 1 reading requires a host-provided zlib decoder. For example, configure this once during application startup:
@@ -154,6 +162,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |
 | WOFF 2.0 (`.woff2`) | Roboto | Throws `NotSupportedException` (WOFF2's transformed `glyf`/`loca` decoding is not implemented) |
+| Colour / bitmap tables | Synthetic reader tests | Reading only; colour/bitmap-aware subsetting is not implemented. Outline subsets drop these tables; bitmap-only inputs are returned whole |
 | Unrecognised data | n/a | Throws `NotSupportedException` |
 
 What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`cvt `, `fpgm`, `prep`, `gasp`) and the outline tables (`glyf`/`loca` or `CFF `). `post` becomes version 3 (no glyph names, though CFF glyph names survive in the charset), and `cmap` is reduced to an empty table, since PDF Identity-H embedding does not use it. Layout and kerning tables (`GSUB`, `GPOS`, `GDEF`, `kern`) are dropped.
