@@ -171,7 +171,7 @@ internal static class VariableFontInstancer
         if (tables.TryGetValue("cvar", out var cv))
         {
             var cvt = Required("cvt ");
-            if ((cvt.Length & 1) != 0) throw Bad();
+            if ((cvt.Length & 1) != 0 || cvt.Length / 2 > 65_536) throw Bad();
             var cr = new Reader(cv);
             if (cr.U16() != 1 || cr.U16() != 0) throw Bad();
             var values = new double[cvt.Length / 2];
@@ -518,6 +518,7 @@ internal static class VariableFontInstancer
         internal double[] X = [], Y = [], ResolvedX = [], ResolvedY = [];
         internal int[] EndPoints = [];
         private byte[] flags = [], instructions = [];
+        private bool hasCompositeInstructions;
         private readonly List<Component> components = [];
         private int state;
         internal double XMin, YMin, XMax, YMax;
@@ -539,6 +540,7 @@ internal static class VariableFontInstancer
                     if (g.components.Count == ushort.MaxValue) throw Bad();
                     budget.Points(1);
                     var c = new Component { Flags = r.U16(), Glyph = r.U16() }; f = c.Flags;
+                    g.hasCompositeInstructions |= (f & 256) != 0;
                     if ((f & 1) != 0) { c.Arg1 = (f & 2) != 0 ? r.I16() : r.U16(); c.Arg2 = (f & 2) != 0 ? r.I16() : r.U16(); }
                     else { c.Arg1 = (f & 2) != 0 ? (sbyte)r.U8() : r.U8(); c.Arg2 = (f & 2) != 0 ? (sbyte)r.U8() : r.U8(); }
                     int start = r.Position;
@@ -549,7 +551,7 @@ internal static class VariableFontInstancer
                     if ((f & 0x1800) == 0x1800 || new[] { 8, 64, 128 }.Count(bit => (f & bit) != 0) > 1) throw Bad();
                     g.components.Add(c);
                 } while ((f & 32) != 0);
-                if ((f & 256) != 0) g.instructions = r.Bytes(r.U16());
+                if (g.hasCompositeInstructions) g.instructions = r.Bytes(r.U16());
                 g.X = new double[g.components.Count]; g.Y = new double[g.components.Count];
             }
             else
@@ -652,7 +654,7 @@ internal static class VariableFontInstancer
                     if ((f & 2) != 0 && (f & 0x800) == 0) f |= 0x1000;
                     Word(f); Word(c.Glyph); Word(c.Arg1); Word(c.Arg2); stream.Write(c.Transform);
                 }
-                if ((components[^1].Flags & 256) != 0) { Word(instructions.Length); stream.Write(instructions); }
+                if (hasCompositeInstructions) { Word(instructions.Length); stream.Write(instructions); }
             }
             else
             {

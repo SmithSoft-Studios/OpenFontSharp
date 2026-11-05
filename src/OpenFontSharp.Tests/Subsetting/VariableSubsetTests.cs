@@ -192,6 +192,29 @@ public class VariableSubsetTests
         SfntInspector.U16(record, 24).Should().Be(0);
     }
 
+    [Fact]
+    public void CompositeInstructionsArePreservedWhenOnlyAnEarlierComponentSetsFlag()
+    {
+        var font = Font(); var original = SfntInspector.Parse(font);
+        byte[] instructions = { 0xb0, 1, 0x21 };
+        var composite = Words(-1, 10, 0, 110, 100, 0x123, 1, 10, 0, 3, 1, 20, 0, instructions.Length)
+            .Concat(instructions).ToArray();
+        var child = original.GlyphRecord(1);
+        if ((child.Length & 1) != 0) child = child.Concat(new byte[] { 0 }).ToArray();
+        font = Replace(font, "glyf", child.Concat(composite).ToArray());
+        font = Replace(font, "loca", Dwords(0, 0, (uint)child.Length, (uint)(child.Length + composite.Length)));
+        var maxp = original.Bytes("maxp"); Put16(maxp, 4, 3); font = Replace(font, "maxp", maxp);
+        var hhea = original.Bytes("hhea"); Put16(hhea, 34, 3); font = Replace(font, "hhea", hhea);
+        font = Replace(font, "hmtx", Words(500, 0, 500, 0, 500, 10));
+        var baseTuple = original.Bytes("gvar").AsSpan(32).ToArray();
+        var variation = Words(1, 0, 1, 0).Concat(Dwords(36)).Concat(Words(3, 1))
+            .Concat(Dwords(36, 0, 0, (uint)baseTuple.Length, (uint)baseTuple.Length)).Concat(baseTuple).ToArray();
+        var record = Instance(Replace(font, "gvar", variation), 900, new HashSet<ushort> { 2 }).GlyphRecord(2);
+        record.Length.Should().BeGreaterThanOrEqualTo(31);
+        SfntInspector.U16(record, 26).Should().Be(3);
+        record.AsSpan(28, 3).ToArray().Should().Equal(instructions);
+    }
+
     [Theory]
     [InlineData(false, false, 580)]
     [InlineData(false, true, 580)]
@@ -425,6 +448,14 @@ public class VariableSubsetTests
         var cvt = Instance(Replace(font, "cvar", cvar), 650).Bytes("cvt ");
         SfntInspector.I16(cvt, 0).Should().Be(100);
         SfntInspector.I16(cvt, 2).Should().Be(201);
+    }
+
+    [Fact]
+    public void RejectsOversizedCvtBeforeAllocatingVariationArraysEvenWithNoTuples()
+    {
+        var font = Replace(Replace(Font(), "cvt ", new byte[65_537 * 2]), "cvar", Words(1, 0, 0, 8));
+        Action act = () => Instance(font, 900);
+        act.Should().Throw<InvalidDataException>();
     }
 
     [Fact]

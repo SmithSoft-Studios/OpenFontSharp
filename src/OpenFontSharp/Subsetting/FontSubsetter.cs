@@ -6,15 +6,15 @@ namespace OpenFontSharp.Subsetting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The default subset path copies glyph records verbatim from the source font. Tables that describe
-/// the font as a whole (head, hhea, OS/2, name) are copied from the source and patched
+/// The default subset path copies glyph records verbatim from the source font. Tables
+/// that describe the font as a whole (head, hhea, OS/2, name) are copied and patched
 /// where the subset changes them, rather than synthesised, so nothing the original
 /// declared — units per em, licensing bits, style — is silently altered.
 /// </para>
 /// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, whose default outlines
-/// are used unless explicit axis coordinates are supplied), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0
-/// wrapping either, and one font of a collection via
+/// are used unless explicit axis coordinates are supplied), name-keyed or CID-keyed
+/// CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0 wrapping either, and a collection member via
 /// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
 /// hand back a font that merely looks valid.
@@ -48,10 +48,10 @@ public static class FontSubsetter
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
         => Subset(fontData, usedGlyphIds, includeUnicodeCmap: false);
 
-    /// <summary>Instantiates a TrueType variable font at design-space axis coordinates, then subsets it.</summary>
+    /// <summary>Instantiates a TrueType variable font at user-space axis coordinates, then subsets it.</summary>
     /// <param name="fontData">Original standalone sfnt or WOFF1/WOFF2 bytes, which are not modified.</param>
     /// <param name="usedGlyphIds">Glyph IDs from the original font.</param>
-    /// <param name="axisCoordinates">Axis tags and finite design-space values. Omitted axes use their defaults; values are clamped to the axis range.</param>
+    /// <param name="axisCoordinates">Axis tags and finite user-space values before normalization and avar mapping. Omitted axes use their defaults; values are clamped to the axis range.</param>
     /// <param name="includeUnicodeCmap">Whether a reduced subset retains Unicode character mappings.</param>
     /// <returns>A static font and old-to-new glyph ID map; an empty map means IDs are unchanged.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>

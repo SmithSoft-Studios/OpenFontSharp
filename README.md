@@ -167,7 +167,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Witho
 | Input | Test font | Result |
 |---|---|---|
 | TrueType (`.ttf`) | Roboto, Shantell Sans (static) | Supported |
-| TrueType variable font | Shantell Sans (default); synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
+| TrueType variable font | Shantell Sans (default and non-default); synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
 | CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
 | CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Throws `NotSupportedException` |
