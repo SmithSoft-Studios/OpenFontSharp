@@ -6,6 +6,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ### Added
 - Standalone WOFF2-to-sfnt conversion via `Woff2Converter.ToSfnt`, including transformed TrueType `glyf`/`loca` and `hmtx`, bounded decoding, table checksums, and `head.checkSumAdjustment`. Brotli remains host-supplied; WOFF2 collections are not supported.
+- `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.
+- Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
 ### Fixed
 - `FontSubsetter.Subset` now accepts standalone WOFF2 bytes and typefaces read from WOFF2. `OpenFontReader` uses the standalone converter for WOFF2 fonts.

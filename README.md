@@ -202,15 +202,15 @@ var subset = FontSubsetter.Subset(fontBytes, usedGlyphIds);
 ushort Remap(ushort oldId) =>
     subset.GlyphIdMap.Count == 0 ? oldId : subset.GlyphIdMap[oldId];
 
-var cidToUnicode = new Dictionary<int, int>();
+var cidToUnicode = new Dictionary<int, int[]>();
 foreach (char c in text)
-    cidToUnicode.TryAdd(Remap(font.GetGlyphIndex(c)), c);
+    cidToUnicode.TryAdd(Remap(font.GetGlyphIndex(c)), new[] { (int)c });
 
 File.WriteAllBytes("Hello-subset.ttf", subset.FontData);
 File.WriteAllBytes("Hello-ToUnicode.txt", ToUnicodeCMapBuilder.Build(cidToUnicode));
 ```
 
-Your PDF writer must use the same remapped IDs as CIDs (or supply a matching CID-to-GID mapping), create the font dictionaries and width entries, and embed both streams. Multiple characters can map to one glyph; choose the intended extraction mapping in your application. The CMap builder accepts source IDs from 0 through 65535 and one Unicode scalar value per source ID. Destinations use UTF-16BE bytes without a BOM: U+1F600 becomes `<D83DDE00>`, not `<1F600>`. Surrogate code points and out-of-range values are rejected. Multi-character ligature mappings still require a richer mapping API outside this helper. The BMP example above does not demonstrate supplementary-text shaping; the basic shaper's separate limitations still apply.
+Your PDF writer must use the same remapped IDs as CIDs (or supply a matching CID-to-GID mapping), create the font dictionaries and width entries, and embed both streams. Multiple characters can map to one glyph; choose the intended extraction mapping in your application. The CMap builder accepts source IDs from 0 through 65535 and either one Unicode scalar or a non-empty sequence of Unicode scalars per source ID. For example, a ligature CID can map to `new[] { 0x66, 0x66, 0x69 }` (`ffi`). Destinations use UTF-16BE bytes without a BOM: U+1F600 becomes `<D83DDE00>`, not `<1F600>`, and sequences can mix BMP and supplementary scalars. Surrogate code points and out-of-range values are rejected. Consecutive mappings use `bfrange` only when the UTF-16BE destination bytes can be incremented without overflow or crossing a surrogate boundary; all CMap blocks contain at most 100 entries. The BMP example above does not demonstrate supplementary-text shaping; the basic shaper's separate limitations still apply.
 
 Respect the font's embedding permissions and license. Subsetting retains OS/2 licensing bits; it does not authorize embedding.
 
