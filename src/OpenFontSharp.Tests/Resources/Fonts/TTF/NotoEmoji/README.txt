@@ -18,3 +18,9 @@ ordinary layer outlines and the .notdef outline are retained. Glyph 0 has
 8 points, glyph 4 has 35 points, and glyph 5 has 38 points.
 
 This fixture tests loading and outline-only subsetting, not colour rendering.
+Manual verification with fontTools 4.60.2 compared all 37 loaded glyphs'
+coordinates, contour endpoints, bounds, advances and bearings. An actual library
+subset retaining source glyphs 0, 2, 4 and 5 was independently loaded and compared
+glyph by glyph (coordinates, flags, endpoints, bounds and metrics); glyph count,
+Unicode cmap, every table checksum and the whole-font checksum were checked.
+The reduced subset contained neither COLR nor CPAL.
