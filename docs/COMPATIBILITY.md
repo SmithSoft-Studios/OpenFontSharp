@@ -93,12 +93,20 @@ Unsupported bitmap index/image formats (including composite EBDT image formats 8
 
 Colour/bitmap rendering and colour/bitmap-aware subsetting remain out of scope. Outline subsets drop these tables; bitmap-only fonts are returned whole by the subsetter. Synthetic tests verify reading and malformed-data handling, not visual rendering or real-world colour font interoperability.
 
+## Subset Unicode cmap
+
+The existing subsetting overloads still write an empty cmap for glyph-addressed embedding. Opt in with `includeUnicodeCmap: true` on the byte, collection-member, or `Typeface` overload to write Windows Unicode BMP format 4 and full-repertoire format 12 subtables. Format 12 includes the BMP mappings as well as supplementary scalars; format 4 reserves U+FFFF for its terminal missing-glyph segment (a source mapping for this noncharacter survives in format 12). Mappings to removed glyphs or glyph zero, and surrogate code points, are omitted. All aliases of retained glyphs are included; callers need not provide a separate code-point list. Fonts returned whole retain their original cmap and empty ID map.
+
+The builder selects a source Unicode subtable, preferring full repertoire over BMP (Windows 3/10, Unicode 0/6, Unicode 0/4, Windows 3/1, then legacy Unicode encodings). Source formats 0, 4, 6, 10, 12 and 13 are supported. Other selected formats throw `NotSupportedException`; absent Unicode mappings produce empty subtables. Symbol and legacy non-Unicode encodings are not reinterpreted as Unicode. Variation sequences (format 14) are not retained. Malformed selected subtables throw `InvalidDataException`, with offsets/counts bounded by their table and ranges bounded by Unicode. A BMP mapping too large for format 4's 65,535-byte length limit throws `NotSupportedException` rather than silently dropping mappings.
+
+Synthetic tests re-read BMP and supplementary mappings through `OpenFontReader`, check both output subtables independently, non-monotonic remapping, aliases, dense BMP arrays, malformed input, and byte-identical default output. CFF and collection paths are also checked. External renderer interoperability is untested. Layout and kerning tables remain dropped.
+
 ## Other existing limitations
 
 - The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
-- Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
-- CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3); CFF2 and Type 1 charstrings are not subset.
+- Subset output has no normal Unicode cmap coverage unless explicitly enabled as above, and always drops layout tables.
+- CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3) and glyphs using the deprecated `seac` operator (components are retained); CFF2 and Type 1 charstrings are not subset.
 
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 
