@@ -39,7 +39,7 @@ bytes are not expected to be byte-identical encodings.
 | WOFF / WOFF2 | `SubsetFormatSupportTests.Woff_TrueType_IsDecodedAndSubsetFaithfully`, `Woff_Cff_IsDecodedAndSubsetFaithfully`, `Woff2_IsDecodedAndSubsetFaithfully`, `Woff2_ReadAsTypeface_IsSubsetFaithfully`; real Roboto and Great Vibes containers | `SubsetVerifier` checks output outlines/metrics and `SfntInspector` checks the sfnt structure |
 | `includeUnicodeCmap` | `SubsetUnicodeCmapTests.OptIn_RoundTripsRetainedUnicodeAndRenumberedGlyphs`, `CffAndCollectionOverloads_KeepUnicodeMappings`, `RealRobotoSubset_MapsEveryRetainedCodePointToItsOriginalOutline`; synthetic BMP/supplementary maps and real Roboto (Apache-2.0) | The real-font test checks every retained source Unicode mapping and uses `SubsetVerifier` for every retained outline; malformed source cmap and format-4 size limits are tested |
 | Default cmap behavior | `SubsetUnicodeCmapTests.DefaultAndExplicitFalse_KeepLegacyEmptyCmapAndIdenticalBytes`, `AllGlyphsRetained_StillReturnsOriginalBytesAndEmptyMap` | Byte-for-byte regression checks |
-| Bitmap/color-only input behavior | `SubsetFormatSupportTests` does not exercise a real bitmap-only font; `BitmapTableTests` and `ColorTableTests` cover table reading only | Color/bitmap-aware subsetting is not implemented |
+| Bitmap/color-only input behavior | `ColorTableTests` verifies ordinary-outline subsetting of a real Noto COLR v1 font, dropping COLR/CPAL in reduced subsets and preserving the all-retained fast path; no real bitmap-only subset fixture | Color/bitmap-aware subsetting and paint-graph flattening are not implemented |
 | Unknown input | `SubsetFormatSupportTests.UnrecognisedData_ThrowsNotSupported` | Synthetic unsupported bytes |
 
 ## Shaping, mapping, metrics and lifecycle
@@ -53,7 +53,7 @@ bytes are not expected to be byte-identical encodings.
 | Script detection | `ShapingTests.ScriptDetector_LatinText_DoesNotRequireComplexShaping`, `ScriptDetector_CyrillicText_DoesNotRequireComplexShaping`, `ScriptDetector_ArabicText_RequiresComplexShaping` | Synthetic text input; complex-script shaping itself is out of scope |
 | Unicode-to-glyph mapping | `SubsetUnicodeCmapTests.RealRobotoSubset_MapsEveryRetainedCodePointToItsOriginalOutline`; real Roboto | Iterates every retained Unicode code point; `SubsetVerifier` compares outlines and advances |
 | `ToUnicodeCMapBuilder` | `ToUnicodeCMapBuilderTests` scalar, sequence, supplementary-plane, range/block and validation cases; synthetic CID-to-Unicode mappings | Exact CMap syntax and scalar encoding expectations; no second CMap implementation is invoked |
-| COLR/CPAL | `ColorTableTests`; synthetic COLR v0 and CPAL v0/v1 tables | Truncation, invalid offsets/counts/references and unsupported versions tested; no real color font fixture |
+| COLR/CPAL | `ColorTableTests`; synthetic COLR v0/v1 and CPAL v0/v1 tables; real Noto Emoji COLR v1 subset (OFL-1.1) | Truncation, invalid offsets/counts/references, ignored recursive paints, version reporting and unsupported versions tested; fontTools 4.60.2 inspected real-font version/base counts/v0 section and manually compared every loaded glyph's coordinates/endpoints/bounds/metrics and every subset glyph's outlines/metrics, cmap and checksums; no v1 rendering |
 | EBLC/CBLC bitmap strikes | `BitmapTableTests`; synthetic EBLC/EBDT and CBLC/CBDT formats | Truncation, malformed ranges/images, unsupported formats/layouts and resource limits tested; no real bitmap-font fixture |
 | Kerning and metrics | `RealFontGposShapingTests.Gpos_KernsAVAndToOnRealFonts`, `MetricsTests` `FontLoader_*`, `TextMeasurer_*`, and `Typeface_GetAllKerningPairs_DoesNotThrow`; real Roboto and Shantell Sans | HarfBuzz references cover GPOS pair positioning; legacy `kern` extraction has only a non-null smoke check |
 | Trim and restore | `NullableContractTests.TrimAndRestore_PreservesMetricsAndRestoresFormatSpecificOutlines`; real Roboto, Great Vibes and Roboto WOFF2; color/bitmap trim tests use synthetic tables | Matching restoration preserves metrics/outlines; mismatched restore is not covered by a real-font test |
@@ -71,5 +71,6 @@ dotnet test SmithSoftStudios.OpenFontSharp.sln -c Release
 The committed Lato positioning subset is derived from Lato 2.015 (OFL-1.1); the
 Source Han CID subset is derived from Source Han Sans JP Regular at the pinned upstream
 revision (OFL-1.1). Each fixture directory records its source, generation details and
-license. The CFF2/`seac`, COLR/CPAL and bitmap gaps above are intentional evidence
+license. The Noto Emoji COLR v1 subset also includes its pinned source, generation
+command and OFL-1.1 license. The CFF2/`seac`, real COLR v0 and bitmap gaps above are intentional evidence
 limitations, not claims of interoperability with unsupported real fonts.

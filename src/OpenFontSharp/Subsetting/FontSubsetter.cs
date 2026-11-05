@@ -14,6 +14,11 @@ namespace OpenFontSharp.Subsetting;
 /// declared — units per em, licensing bits, style — is silently altered.
 /// </para>
 /// <para>
+/// Reduced subsets drop COLR and CPAL colour tables, retaining ordinary outlines rather
+/// than flattening colour glyphs. The all-glyphs-retained fast path returns the original
+/// font unchanged, including its colour tables.
+/// </para>
+/// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, whose default outlines
 /// are used unless explicit axis coordinates are supplied), name-keyed or CID-keyed
 /// CFF and CFF2 outlines (OpenType 'OTTO'), WOFF 1.0/2.0 wrapping either, and a collection member via

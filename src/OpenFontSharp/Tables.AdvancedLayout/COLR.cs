@@ -12,6 +12,9 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         /// <inheritdoc />
         public override string Name => _N;
 
+        /// <summary>Gets the loaded COLR version. Version 1 paint graphs are not interpreted.</summary>
+        public ushort Version { get; private set; }
+
         readonly Dictionary<ushort, IReadOnlyList<ColorLayer>> _layers = new();
         ColorLayer[] _records = Array.Empty<ColorLayer>();
 
@@ -31,18 +34,34 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //uint16    numLayerRecords         Number of Layer Records.
 
 
-            ushort version = reader.ReadUInt16();
-            if (version != 0)
-                throw new OpenFontNotSupportedException($"COLR version {version} is not supported; only version 0 is supported.");
+            Version = reader.ReadUInt16();
+            if (Version > 1)
+                throw new OpenFontNotSupportedException($"COLR version {Version} is not supported; only versions 0 and 1 are supported.");
+            uint headerLength = Version == 1 ? 34u : 14u;
+            bounds.RequireRange(0, headerLength);
             ushort numBaseGlyphRecords = reader.ReadUInt16();
             uint baseGlyphRecordsOffset = reader.ReadUInt32();
             uint layerRecordsOffset = reader.ReadUInt32();
             ushort numLayerRecords = reader.ReadUInt16();
 
+            if (Version == 1)
+            {
+                // Only validate the extension references; never traverse unsupported paint graphs.
+                uint[] minimumLengths = { 4, 4, 5, 4, 8 };
+                foreach (uint minimumLength in minimumLengths)
+                {
+                    uint offset = reader.ReadUInt32();
+                    if (offset == 0) continue;
+                    bounds.RequireRange(offset, minimumLength);
+                    if (offset < headerLength)
+                        throw new InvalidDataException("COLR version 1 data overlaps the header.");
+                }
+            }
+
             bounds.RequireRange(baseGlyphRecordsOffset, (ulong)numBaseGlyphRecords * 6);
             bounds.RequireRange(layerRecordsOffset, (ulong)numLayerRecords * 4);
-            if ((numBaseGlyphRecords != 0 && baseGlyphRecordsOffset < 14) ||
-                (numLayerRecords != 0 && layerRecordsOffset < 14))
+            if ((numBaseGlyphRecords != 0 && baseGlyphRecordsOffset < headerLength) ||
+                (numLayerRecords != 0 && layerRecordsOffset < headerLength))
                 throw new InvalidDataException("COLR records overlap the header.");
 
             // All record counts are uint16, capping each allocation at 65,535 entries.

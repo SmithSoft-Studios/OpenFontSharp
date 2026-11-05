@@ -95,7 +95,11 @@ Verification includes synthetic glyph streams, composite glyphs, horizontal metr
 
 The read-only `Typeface.GetColorLayers(ushort)` API exposes COLR v0 layer glyph IDs and palette entry indices in painting order. Palette index `0xFFFF` denotes the foreground colour. `PaletteCount` and `GetPalette(int)` expose CPAL v0/v1 colour records in BGRA order with sRGB colour components. Absent or trimmed layers give an empty list; absent, trimmed, or out-of-range palette access throws `ArgumentOutOfRangeException`. Returned lists and their value-type entries cannot be modified, and changing the legacy low-level table arrays does not change these views.
 
-COLR versions other than 0 and CPAL versions other than 0/1 throw `OpenFontNotSupportedException` naming the table and version. CPAL v1 optional metadata is bounds-checked but not exposed. Colour record and base/layer counts are bounded by their 16-bit fields (65,535); shared palette and layer ranges are not expanded into copies. Invalid table-local offsets, truncated records, invalid layer ranges, unordered base glyphs, and out-of-range glyph/palette references throw `InvalidDataException`.
+COLR v1 fonts load supported outlines, metrics, cmap and other supported tables normally. `Typeface.ColorTableVersion` reports `0` or `1`, or `null` when COLR is absent or trimmed. `GetColorLayers` exposes only compatible v0 base/layer records, if present, and otherwise returns an empty list. The v1 `BaseGlyphList`, `LayerList`, `ClipList`, `VarIndexMap` and `VarStore` contents are ignored, not interpreted, rendered or recursively validated. The complete v1 header and its non-null extension references are bounds-checked; ignored paint graphs cannot cause recursion or allocations. Ordinary base glyph outlines may be empty: paint graphs are not flattened into outlines.
+
+Reduced subsets of COLR v0/v1 fonts retain requested ordinary outlines and metrics and drop both `COLR` and `CPAL`. As before, retaining every glyph returns the original font unchanged, including colour tables.
+
+COLR and CPAL versions other than 0/1 throw `OpenFontNotSupportedException` naming the table and version. CPAL v1 optional metadata is bounds-checked but not exposed. Compatible v0 colour record and base/layer counts are bounded by their 16-bit fields (65,535); shared palette and layer ranges are not expanded into copies. Invalid table-local offsets, truncated records, invalid layer ranges, unordered base glyphs, and out-of-range v0 glyph/palette references throw `InvalidDataException`.
 
 Bitmap-only EBLC/EBDT (version 2.0) and CBLC/CBDT (version 3.0) fonts support index subtable formats 1–5, including sparse ranges and shared metrics. Horizontal strikes are supported; vertical layouts throw a specific `OpenFontNotSupportedException`, and reserved layout flags throw `InvalidDataException`. The existing glyph API selects the first strike; every strike is validated. Hybrid fonts continue to use outlines instead of bitmap strikes. EBDT image formats 1, 2, 5, 6, 7 and CBDT image formats 17, 18, 19 expose metrics and encoded image bytes through `GetGlyph` / `ReadBitmapContent`. EBDT bytes remain packed pixels; CBDT 17–19 bytes are the embedded PNG payload, not decoded pixels.
 
@@ -137,7 +141,7 @@ See the [README examples](../README.md) for choosing an appropriate workflow. Th
 The [test coverage matrix](TEST-COVERAGE.md) records the current test methods and distinguishes
 synthetic coverage from real-font and independent-reference evidence. It includes a real
 Source Han CID-keyed CFF subset, HarfBuzz positioning expectations, and a real-font Unicode
-cmap subset test. The repository has no real `seac`, CFF2 variable, COLR/CPAL, or EBLC/CBLC
+cmap subset test. A small Noto Emoji COLR v1 subset (SIL OFL 1.1) covers outline/metrics/cmap loading and outline-only subsetting; its COLR version, base counts and v0 section were inspected with fontTools 4.60.2. The repository has no real `seac`, CFF2 variable, COLR v0, or EBLC/CBLC
 fixture; those paths are covered with synthetic data only. The real variable-font fixture set
 does not contain a second font with a different axis layout. CI runs the suite in both Debug
 and Release.
