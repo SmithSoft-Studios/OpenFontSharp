@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Fixed
+- `BasicLatinShaper` applied every GSUB lookup in the font, not only the `liga` and `clig` ligature features, so ordinary letters were replaced by unrelated alternate glyphs (for example Roboto "Hello" shaped to different glyphs than the cmap). It now applies only lookups of those two features.
+
 ## [1.2.3]
 
 ### Fixed
