@@ -2229,9 +2229,15 @@ namespace OpenFontSharp.Tables.CFF
         //Font DICT INDEX
         //Array of Font DICT  Included in Font DICT INDEX.
         //Private DICT    One per Font DICT.
-        public void ParseAfterHeader(BinaryReader reader)
+        public Cff1FontSet Parse(byte[] data)
         {
-
+            byte[] staticCff = Cff2DefaultInstanceConverter.ConvertToCff1(data);
+            using var stream = new MemoryStream(staticCff);
+            using var reader = new ByteOrderSwappingBinaryReader(stream);
+            reader.ReadBytes(4);
+            var parser = new Cff1Parser();
+            parser.ParseAfterHeader(0, reader);
+            return parser.ResultCff1FontSet;
         }
     }
 }

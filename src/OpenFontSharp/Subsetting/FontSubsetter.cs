@@ -1,3 +1,5 @@
+using OpenFontSharp.Tables.CFF;
+
 namespace OpenFontSharp.Subsetting;
 
 /// <summary>
@@ -13,11 +15,12 @@ namespace OpenFontSharp.Subsetting;
 /// </para>
 /// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
-/// their default instance), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0
+/// their default instance), CFF/CFF2 outlines (OpenType 'OTTO'), WOFF 1.0/2.0
 /// wrapping either, and one font of a collection via
 /// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
 /// hand back a font that merely looks valid.
+/// CFF2 subsets are emitted as static CFF1 ('CFF ') outlines in an 'OTTO' font.
 /// </para>
 /// </remarks>
 public static class FontSubsetter
@@ -27,15 +30,15 @@ public static class FontSubsetter
     /// </summary>
     /// <remarks>
     /// The output is always a plain sfnt font (never WOFF). When every glyph
-    /// is retained, the font is returned whole with an empty
-    /// <see cref="SubsetResult.GlyphIdMap"/>.
+    /// is retained, glyph IDs are unchanged and <see cref="SubsetResult.GlyphIdMap"/>
+    /// is empty; CFF2 is still converted to static CFF1 outlines.
     /// </remarks>
     /// <param name="fontData">The original standalone font or WOFF1/WOFF2 bytes.</param>
     /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against the original font.</param>
     /// <returns>The font bytes and old-to-new ID map; an empty map means IDs are unchanged.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">
-    /// The font's format cannot be subset (collection without an index, CFF2,
+    /// The font's format cannot be subset (collection without an index,
     /// or unrecognised data), or no WOFF2 Brotli hook is installed.
     /// </exception>
     /// <exception cref="InvalidDataException">The WOFF2 input is malformed.</exception>
@@ -47,7 +50,7 @@ public static class FontSubsetter
     /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against the original font.</param>
     /// <param name="includeUnicodeCmap">Whether to map Unicode characters of retained glyphs to their new IDs using cmap formats 4 and 12.</param>
     /// <returns>The font bytes and old-to-new ID map; an empty map means the font is unchanged.</returns>
-    /// <remarks>Unchanged fonts are returned whole, including their original cmap. Layout tables are not retained in subsets.</remarks>
+    /// <remarks>Unchanged fonts are returned whole, including their original cmap. When all CFF2 glyphs are retained, the outlines are still normalized to static CFF1. Layout tables are not retained in subsets.</remarks>
     /// <exception cref="InvalidDataException">The selected source Unicode cmap or WOFF2 input is malformed.</exception>
     /// <exception cref="NotSupportedException">The input cannot be subset, the selected Unicode cmap format is unsupported, or its BMP mappings exceed the format 4 length limit.</exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
@@ -184,8 +187,9 @@ public static class FontSubsetter
 
     private static SubsetResult SubsetCff(RawTtfTables tables, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
-        if (tables.Has("CFF2") || !tables.Has("CFF "))
-            throw new NotSupportedException("Fonts with CFF2 outlines (variable OpenType/CFF) cannot be subset.");
+        bool cff2 = tables.Has("CFF2");
+        if (!cff2 && !tables.Has("CFF "))
+            throw new NotSupportedException("The font has no supported CFF outline table.");
 
         // Start with .notdef and the requested glyphs; CFF seac dependencies are added
         // by the builder before the subset and glyph-id map are written.
@@ -197,14 +201,18 @@ public static class FontSubsetter
         }
 
         var retained = needed.ToList();
-        if (retained.Count >= tables.NumGlyphs)
+        if (!cff2 && retained.Count >= tables.NumGlyphs)
             return Unchanged(tables);
 
-        var cffSubset = CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained, out var expanded);
-        if (expanded.Count >= tables.NumGlyphs)
+        byte[] cff = cff2
+            ? Cff2DefaultInstanceConverter.ConvertToCff1(tables.TableBytes("CFF2"))
+            : tables.TableBytes("CFF ");
+        var cffSubset = CffSubsetBuilder.Build(cff, retained, out var expanded);
+        if (!cff2 && expanded.Count >= tables.NumGlyphs)
             return Unchanged(tables);
 
-        var glyphIdMap = BuildGlyphIdMap(expanded);
+        // A CFF2 font is always rewritten as static CFF1; keeping every glyph leaves the IDs unchanged.
+        var glyphIdMap = expanded.Count >= tables.NumGlyphs ? [] : BuildGlyphIdMap(expanded);
 
         var writer = new TtfWriter(TtfWriter.CffVersion);
         writer.AddTable("head", BuildHead(tables, longLoca: false));

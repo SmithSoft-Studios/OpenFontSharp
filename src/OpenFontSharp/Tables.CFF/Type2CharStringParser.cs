@@ -190,8 +190,8 @@ namespace OpenFontSharp.Tables.CFF
         escape,//12
         _Reserved13_,
         endchar,//14
-        _Reserved15_,
-        _Reserved16_,
+        vsindex,//15, CFF2 only
+        blend,//16, CFF2 only
         _Reserved17_,
         hstemhm,//18
         hintmask,//19
@@ -529,12 +529,18 @@ namespace OpenFontSharp.Tables.CFF
         Cff1Font? _currentCff1Font;
         int _globalSubrBias;
         int _localSubrBias;
+        bool _isCff2;
+        int _vsindex;
+        float[][] _variationScalars = [];
 
         public void SetCurrentCff1Font(Cff1Font currentCff1Font)
         {
             //this will provide subr buffer for callsubr callgsubr
             _currentFontDict = null;//reset
             _currentCff1Font = currentCff1Font;
+            _isCff2 = false;
+            _vsindex = 0;
+            _variationScalars = [];
 
             if (_currentCff1Font._globalSubrRawBufferList != null)
             {
@@ -544,6 +550,13 @@ namespace OpenFontSharp.Tables.CFF
             {
                 _localSubrBias = CalculateBias(_currentCff1Font._localSubrRawBufferList.Count);
             }
+        }
+
+        public void SetCurrentCff2Font(Cff1Font currentCff1Font, float[][] variationScalars)
+        {
+            SetCurrentCff1Font(currentCff1Font);
+            _isCff2 = true;
+            _variationScalars = variationScalars;
         }
 
 
@@ -673,8 +686,6 @@ namespace OpenFontSharp.Tables.CFF
                     case (byte)Type2Operator1._Reserved2_://???
                     case (byte)Type2Operator1._Reserved9_://???
                     case (byte)Type2Operator1._Reserved13_://???
-                    case (byte)Type2Operator1._Reserved15_://???
-                    case (byte)Type2Operator1._Reserved16_: //???
                     case (byte)Type2Operator1._Reserved17_: //???
                         //reserved, do nothing ?
                         break;
@@ -733,10 +744,26 @@ namespace OpenFontSharp.Tables.CFF
 
                     //---------------------------------------------------------------------------
                     case (byte)Type2Operator1.endchar:
+                        if (_isCff2)
+                            throw new OpenFontNotSupportedException("CFF2 charstrings do not use endchar.");
                         AddEndCharOp();
                         cont = false;
                         //when we found end char
                         //stop reading this...
+                        break;
+                    case (byte)Type2Operator1.vsindex:
+                        if (_isCff2)
+                        {
+                            Type2Instruction vsindex = _insts.RemoveLast();
+                            if (!vsindex.IsLoadInt || (uint)vsindex.Value >= (uint)_variationScalars.Length)
+                                throw new OpenFontNotSupportedException("CFF2 vsindex is outside the ItemVariationStore.");
+                            _vsindex = vsindex.Value;
+                            _current_integer_count--;
+                        }
+                        break;
+                    case (byte)Type2Operator1.blend:
+                        if (_isCff2)
+                            ApplyDefaultBlend();
                         break;
                     case (byte)Type2Operator1.rmoveto: AddMoveToOp(OperatorName.rmoveto); StopStemCount(); break;
                     case (byte)Type2Operator1.hmoveto: AddMoveToOp(OperatorName.hmoveto); StopStemCount(); break;
@@ -862,6 +889,7 @@ namespace OpenFontSharp.Tables.CFF
             _foundSomeStem = false;
             _enterPathConstructionSeq = false;
             _doStemCount = true;
+            _vsindex = 0;
 
             _insts = new Type2GlyphInstructionList();
             //--------------------
@@ -890,6 +918,56 @@ namespace OpenFontSharp.Tables.CFF
             return _insts;
         }
 
+        void ApplyDefaultBlend()
+        {
+            var instructions = _insts.InnerInsts;
+            Type2Instruction countInstruction = _insts.RemoveLast();
+            if (!countInstruction.IsLoadInt || countInstruction.Value < 0)
+                throw new OpenFontNotSupportedException("A CFF2 blend operator has an invalid value count.");
+
+            int valueCount = countInstruction.Value;
+            float[] scalars = _variationScalars[_vsindex];
+            int inputCount;
+            try
+            {
+                inputCount = checked(valueCount * (scalars.Length + 1));
+            }
+            catch (OverflowException)
+            {
+                throw new OpenFontNotSupportedException("A CFF2 blend operator has too many operands.");
+            }
+            int inputStart = instructions.Count - inputCount;
+            if (inputStart < 0)
+                throw new OpenFontNotSupportedException("A CFF2 blend operator has too few operands.");
+
+            var values = new Type2Instruction[valueCount];
+            for (int value = 0; value < valueCount; value++)
+            {
+                double blended = ReadNumber(instructions[inputStart + value]);
+                for (int region = 0; region < scalars.Length; region++)
+                    blended += ReadNumber(instructions[inputStart + valueCount + (region * valueCount) + value]) * scalars[region];
+
+                if (!double.IsFinite(blended) || blended < int.MinValue || blended > int.MaxValue)
+                    throw new OpenFontNotSupportedException("A CFF2 blend result is outside the supported numeric range.");
+
+                double rounded = Math.Round(blended);
+                values[value] = Math.Abs(blended - rounded) < 1e-6
+                    ? new Type2Instruction(OperatorName.LoadInt, (int)rounded)
+                    : new Type2Instruction(OperatorName.LoadFloat, checked((int)Math.Round(blended * 65536)));
+            }
+
+            instructions.RemoveRange(inputStart, inputCount);
+            instructions.AddRange(values);
+            _current_integer_count -= inputCount + 1 - valueCount;
+        }
+
+        static double ReadNumber(Type2Instruction instruction) => (OperatorName)instruction.Op switch
+        {
+            OperatorName.LoadInt => instruction.Value,
+            OperatorName.LoadFloat => instruction.Value / 65536.0,
+            _ => throw new OpenFontNotSupportedException("A CFF2 blend operand is not a number.")
+        };
+
         void StopStemCount()
         {
             _current_integer_count = 0;
@@ -907,7 +985,7 @@ namespace OpenFontSharp.Tables.CFF
             //or endchar,
             //takes an additional argument — the width(as described earlier), which may be expressed as zero or one numeric argument
 
-            if (!_foundSomeStem && !_enterPathConstructionSeq)
+            if (!_isCff2 && !_foundSomeStem && !_enterPathConstructionSeq)
             {
                 if (_insts.Count > 0)
                 {
@@ -989,7 +1067,7 @@ namespace OpenFontSharp.Tables.CFF
             //represented as:
             //w? { hs* vs*cm * hm * mt subpath}? { mt subpath} *endchar 
 
-            if ((_current_integer_count % 2) != 0)
+            if (!_isCff2 && (_current_integer_count % 2) != 0)
             {
                 //all kind has even number of stem
                 if (_foundSomeStem)

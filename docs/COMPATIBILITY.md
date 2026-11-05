@@ -106,7 +106,7 @@ Synthetic tests re-read BMP and supplementary mappings through `OpenFontReader`,
 - The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage unless explicitly enabled as above, and always drops layout tables.
-- CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3) and glyphs using the deprecated `seac` operator (components are retained); CFF2 and Type 1 charstrings are not subset.
+- CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3) and glyphs using the deprecated `seac` operator (components are retained); CFF2 fonts are subset to their default instance and written as static CFF1; Type 1 charstrings are not subset.
 
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 
