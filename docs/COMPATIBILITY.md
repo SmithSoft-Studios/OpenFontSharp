@@ -73,7 +73,19 @@ Constructing a low-level table directly does not load it. Likewise, `GetMathGlyp
 
 Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and related data. `RestoreUp` still attempts restoration only when trimmed; a header mismatch leaves the typeface trimmed. Check the resulting state and use the original font stream and the first restoration ticket.
 
-## Existing limitations remain unchanged
+## Colour and bitmap tables
+
+The read-only `Typeface.GetColorLayers(ushort)` API exposes COLR v0 layer glyph IDs and palette entry indices in painting order. Palette index `0xFFFF` denotes the foreground colour. `PaletteCount` and `GetPalette(int)` expose CPAL v0/v1 colour records in BGRA order with sRGB colour components. Absent or trimmed layers give an empty list; absent, trimmed, or out-of-range palette access throws `ArgumentOutOfRangeException`. Returned lists and their value-type entries cannot be modified, and changing the legacy low-level table arrays does not change these views.
+
+COLR versions other than 0 and CPAL versions other than 0/1 throw `OpenFontNotSupportedException` naming the table and version. CPAL v1 optional metadata is bounds-checked but not exposed. Colour record and base/layer counts are bounded by their 16-bit fields (65,535); shared palette and layer ranges are not expanded into copies. Invalid table-local offsets, truncated records, invalid layer ranges, unordered base glyphs, and out-of-range glyph/palette references throw `InvalidDataException`.
+
+Bitmap-only EBLC/EBDT (version 2.0) and CBLC/CBDT (version 3.0) fonts support index subtable formats 1–5, including sparse ranges and shared metrics. Horizontal strikes are supported; vertical layouts throw a specific `OpenFontNotSupportedException`, and reserved layout flags throw `InvalidDataException`. The existing glyph API selects the first strike; every strike is validated. Hybrid fonts continue to use outlines instead of bitmap strikes. EBDT image formats 1, 2, 5, 6, 7 and CBDT image formats 17, 18, 19 expose metrics and encoded image bytes through `GetGlyph` / `ReadBitmapContent`. EBDT bytes remain packed pixels; CBDT 17–19 bytes are the embedded PNG payload, not decoded pixels.
+
+Unsupported bitmap index/image formats (including composite EBDT image formats 8/9), versions, or bit depths throw a specific `OpenFontNotSupportedException`. Invalid ranges, truncated images, offsets outside their own tables, and excessive counts throw `InvalidDataException`, not array-index exceptions. Location tables are capped at 64 MiB, data tables at 256 MiB, strikes at 1,024, index subtables per strike at 65,536, and indexed glyph slots across strikes at 1,048,576. Per-strike glyph IDs are 16-bit and must fit `maxp.numGlyphs`.
+
+Colour/bitmap rendering and colour/bitmap-aware subsetting remain out of scope. Outline subsets drop these tables; bitmap-only fonts are returned whole by the subsetter. Synthetic tests verify reading and malformed-data handling, not visual rendering or real-world colour font interoperability.
+
+## Other existing limitations
 
 - The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.

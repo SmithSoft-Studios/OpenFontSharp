@@ -470,9 +470,12 @@ namespace OpenFontSharp
                     //check  cbdt/cblc ?
                     if (ticket.HasBitmapSource)
                     {
-                        //reload only CBDT (embeded bitmap)
-                        CBDT cbdt = rd.ReadRequired(new CBDT());
+                        // Reload the data table matching the retained bitmap locations.
+                        CBDT cbdt = typeface._bitmapFontGlyphSource!.IsMonochrome
+                            ? rd.Read(new EBDT()) ?? throw new InvalidDataException("EBLC requires an EBDT table.")
+                            : rd.Read(new CBDT()) ?? throw new InvalidDataException("CBLC requires a CBDT table.");
                         typeface._bitmapFontGlyphSource!.LoadCBDT(cbdt);
+                        typeface._bitmapFontGlyphSource.BuildGlyphList();
                         //just clone existing glyph 
                         isBitmapFont = true;
                     }
@@ -540,6 +543,8 @@ namespace OpenFontSharp
             NameEntry? nameEntry = rd.Read(new NameEntry());
             Head head = rd.ReadRequired(new Head());
             MaxProfile maxProfile = rd.ReadRequired(new MaxProfile());
+            if (maxProfile.GlyphCount == 0)
+                throw new InvalidDataException("maxp.numGlyphs must be greater than zero.");
             HorizontalHeader horizontalHeader = rd.ReadRequired(new HorizontalHeader());
             HorizontalMetrics? horizontalMetrics = rd.Read(new HorizontalMetrics(horizontalHeader.NumberOfHMetrics, maxProfile.GlyphCount));
             VerticalHeader? vhea = rd.Read(new VerticalHeader());
@@ -607,21 +612,28 @@ namespace OpenFontSharp
                     CBLC? cblcTable = rd.Read(new CBLC());
                     if (cblcTable != null)
                     {
-                        CBDT cbdtTable = rd.ReadRequired(new CBDT());
+                        CBDT cbdtTable = rd.Read(new CBDT()) ??
+                            throw new InvalidDataException("CBLC requires a CBDT table.");
                         //read cbdt 
                         //bitmap font
 
                         BitmapFontGlyphSource bmpFontGlyphSrc = new BitmapFontGlyphSource(cblcTable);
                         bmpFontGlyphSrc.LoadCBDT(cbdtTable);
-                        Glyph[] glyphs = bmpFontGlyphSrc.BuildGlyphList();
+                        Glyph[] glyphs = bmpFontGlyphSrc.BuildGlyphList(maxProfile.GlyphCount);
                         typeface.SetBitmapGlyphs(glyphs, bmpFontGlyphSrc);
                         isBitmapFont = true;
                     }
                     else
                     {
-                        //TODO:
                         EBLC? fontBmpTable = rd.Read(new EBLC());
-                        throw new OpenFontNotSupportedException();
+                        if (fontBmpTable == null)
+                            throw new OpenFontNotSupportedException("The font has no supported outline or bitmap location table.");
+                        EBDT bitmapData = rd.Read(new EBDT()) ??
+                            throw new InvalidDataException("EBLC requires an EBDT table.");
+                        var bitmapSource = new BitmapFontGlyphSource(fontBmpTable);
+                        bitmapSource.LoadCBDT(bitmapData);
+                        typeface.SetBitmapGlyphs(bitmapSource.BuildGlyphList(maxProfile.GlyphCount), bitmapSource);
+                        isBitmapFont = true;
                     }
                 }
                 else
