@@ -126,6 +126,38 @@ public class SubsetUnicodeCmapTests
             reread.GetGlyphIndex(codePoint).Should().Be(1);
     }
 
+    [Fact]
+    public void BmpMappingsExceedingFormat4Length_ThrowRatherThanLoseMappings()
+    {
+        var mappings = Enumerable.Range(1, 40000).Select(c => (c, (ushort)4)).ToArray();
+        byte[] source = ReplaceCmap(MakeFont(), BuildSourceCmap(mappings));
+        var act = () => FontSubsetter.Subset(source, new HashSet<ushort> { 4 }, includeUnicodeCmap: true);
+        act.Should().Throw<NotSupportedException>().WithMessage("*format 4 length limit*");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void MissingOrSymbolOnlyCmap_DoesNotInventUnicodeMappings(bool missing)
+    {
+        byte[] source = MakeFont();
+        var font = SfntInspector.Parse(source);
+        var writer = new TtfWriter();
+        foreach (var table in font.Directory.Where(t => t.Tag != "cmap"))
+            writer.AddTable(table.Tag, font.Bytes(table.Tag));
+        if (!missing)
+        {
+            var cmap = BuildSourceCmap();
+            BinaryPrimitives.WriteUInt16BigEndian(cmap.AsSpan(4), 3);
+            BinaryPrimitives.WriteUInt16BigEndian(cmap.AsSpan(6), 0);
+            writer.AddTable("cmap", cmap);
+        }
+        var result = FontSubsetter.Subset(writer.Build(), new HashSet<ushort> { 2, 4 }, includeUnicodeCmap: true);
+        var reread = FontFiles.Load(result.FontData);
+        foreach (var (codePoint, _) in Mappings)
+            reread.GetGlyphIndex(codePoint).Should().Be(0);
+    }
+
     [Theory]
     [InlineData(8, uint.MaxValue)] // subtable offset
     [InlineData(16, uint.MaxValue)] // subtable length

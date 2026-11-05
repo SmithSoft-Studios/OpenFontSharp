@@ -212,7 +212,8 @@ internal static class UnicodeCmapBuilder
                 Require(table.Length >= header);
                 uint first = format == 6 ? Read16(table, 6) : Read32(table, 12);
                 uint entries = format == 6 ? Read16(table, 8) : Read32(table, 16);
-                Require(first <= 0x10FFFF && entries <= 0x110000 - first && entries <= (table.Length - header) / 2);
+                uint limit = format == 6 ? 0x10000u : 0x110000u;
+                Require(first < limit && entries <= limit - first && entries <= (table.Length - header) / 2);
                 for (int i = 0; i < entries; i++)
                     Add((int)first + i, Read16(table, header + 2 * i));
                 break;

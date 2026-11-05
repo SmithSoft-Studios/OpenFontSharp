@@ -48,6 +48,8 @@ public static class FontSubsetter
     /// <param name="includeUnicodeCmap">Whether to map Unicode characters of retained glyphs to their new IDs using cmap formats 4 and 12.</param>
     /// <returns>The font bytes and old-to-new ID map; an empty map means the font is unchanged.</returns>
     /// <remarks>Unchanged fonts are returned whole, including their original cmap. Layout tables are not retained in subsets.</remarks>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap or WOFF2 input is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, the selected Unicode cmap format is unsupported, or its BMP mappings exceed the format 4 length limit.</exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(fontData);
@@ -104,6 +106,8 @@ public static class FontSubsetter
     /// <param name="usedGlyphIds">Glyph IDs from the selected original member.</param>
     /// <param name="includeUnicodeCmap">Whether to write Unicode cmap formats 4 and 12 for retained glyphs.</param>
     /// <returns>The standalone member subset and ID remapping; an empty map means the member is unchanged.</returns>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, or its Unicode cmap cannot be retained.</exception>
     public static SubsetResult Subset(byte[] fontData, int fontIndex, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(fontData);
@@ -144,6 +148,8 @@ public static class FontSubsetter
     /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against that font.</param>
     /// <param name="includeUnicodeCmap">Whether to write Unicode cmap formats 4 and 12 for retained glyphs.</param>
     /// <returns>The standalone subset and ID remapping; an empty map means the font is unchanged.</returns>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap or WOFF2 input is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, or its Unicode cmap cannot be retained.</exception>
     public static SubsetResult Subset(Typeface typeface, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(typeface);
