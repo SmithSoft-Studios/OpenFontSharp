@@ -4,41 +4,47 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
 {
     class BitmapFontGlyphSource
     {
-        readonly CBLC _cblc; //bitmap locator
+        readonly BitmapLocationTable _locations;
         CBDT? _loadedCbdt;
-        CBDT _cbdt
-        {
-            get => _loadedCbdt ?? throw new NullReferenceException("The bitmap glyph source has no loaded CBDT table.");
-            set => _loadedCbdt = value;
-        }
-        public BitmapFontGlyphSource(CBLC cblc) => _cblc = cblc;
+        CBDT Data => _loadedCbdt ?? throw new InvalidDataException("Bitmap data is not loaded.");
+        internal bool IsMonochrome => _locations is EBLC;
 
-        /// <summary>
-        /// load new bitmap embeded data
-        /// </summary>
-        /// <param name="cbdt"></param>
-        public void LoadCBDT(CBDT cbdt) => _cbdt = cbdt;
+        public BitmapFontGlyphSource(CBLC cblc) => _locations = cblc;
+        internal BitmapFontGlyphSource(EBLC eblc) => _locations = eblc;
+        public void LoadCBDT(CBDT cbdt) => _loadedCbdt = cbdt;
 
-        /// <summary>
-        /// clear and remove existing bitmap embeded data
-        /// </summary>
         public void UnloadCBDT()
         {
-            if (_loadedCbdt != null)
-            {
-                _cbdt.RemoveOldMemoryStreamAndReaders();
-                _loadedCbdt = null;
-            }
+            _loadedCbdt?.RemoveOldMemoryStreamAndReaders();
+            _loadedCbdt = null;
         }
 
-        public void CopyBitmapContent(Glyph glyph, System.IO.Stream outputStream) => _cbdt.CopyBitmapContent(glyph, outputStream);
+        public void CopyBitmapContent(Glyph glyph, Stream outputStream) => Data.CopyBitmapContent(glyph, outputStream);
 
-        public Glyph[] BuildGlyphList()
+        public Glyph[] BuildGlyphList() => BuildGlyphList(0);
+
+        internal Glyph[] BuildGlyphList(int glyphCount)
         {
-            Glyph[] glyphs = _cblc.BuildGlyphList();
-            for (int i = 0; i < glyphs.Length; ++i)
+            Glyph[] glyphs = _locations.BuildGlyphList();
+            if (glyphCount != 0)
             {
-                _cbdt.FillGlyphInfo(glyphs[i]);
+                if (_locations.HighestGlyphId >= glyphCount)
+                    throw new InvalidDataException("Bitmap glyph ID exceeds maxp.numGlyphs.");
+                int oldLength = glyphs.Length;
+                Array.Resize(ref glyphs, glyphCount);
+                for (int i = oldLength; i < glyphs.Length; i++)
+                    glyphs[i] = new Glyph((ushort)i, 0, 0, 0);
+            }
+            for (int strike = 0; strike < _locations.Strikes.Length; strike++)
+            {
+                foreach (var record in _locations.Strikes[strike])
+                {
+                    if (glyphCount != 0 && record.GlyphId >= glyphCount)
+                        throw new InvalidDataException("Bitmap glyph ID exceeds maxp.numGlyphs.");
+                    var glyph = strike == 0 ? glyphs[record.GlyphId] :
+                        new Glyph(record.GlyphId, record.Offset, record.Length, record.ImageFormat);
+                    Data.FillGlyphInfo(glyph, record, retainImage: strike == 0);
+                }
             }
             return glyphs;
         }
