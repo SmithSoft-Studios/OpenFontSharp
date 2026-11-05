@@ -523,9 +523,26 @@ namespace OpenFontSharp
         /// <summary>Gets the color palette table, or null when absent or trimmed.</summary>
         public CPAL? CPALTable { get; private set; }
 
+        /// <summary>Gets the number of loaded CPAL palettes, or zero when absent or trimmed.</summary>
+        public int PaletteCount => CPALTable?.PaletteCount ?? 0;
+
+        /// <summary>Gets COLR v0 layers in painting order, or an empty list when the glyph has no loaded layers.</summary>
+        /// <param name="glyphId">The base glyph identifier.</param>
+        /// <returns>A read-only list of layer glyphs and palette entry indices; 0xFFFF denotes the foreground colour.</returns>
+        public IReadOnlyList<ColorLayer> GetColorLayers(ushort glyphId) =>
+            COLRTable?.GetLayers(glyphId) ?? Array.Empty<ColorLayer>();
+
+        /// <summary>Gets a loaded CPAL palette as read-only BGRA colour records.</summary>
+        /// <param name="index">The zero-based palette index.</param>
+        /// <returns>The palette's entries, retaining sRGB colour and alpha components.</returns>
+        /// <exception cref="ArgumentOutOfRangeException">The palette is absent, trimmed, or the index is invalid.</exception>
+        public IReadOnlyList<PaletteColor> GetPalette(int index) =>
+            CPALTable?.GetPalette(index) ?? throw new ArgumentOutOfRangeException(nameof(index));
+
         internal bool HasColorAndPal { get; private set; }
         internal void SetColorAndPalTable(COLR? colr, CPAL? cpal)
         {
+            colr?.Validate(MaxProfile.GlyphCount, cpal);
             COLRTable = colr;
             CPALTable = cpal;
             HasColorAndPal = colr != null;
@@ -544,8 +561,7 @@ namespace OpenFontSharp
             this.GSUBTable = gsubTable;
             this.GPOSTable = gposTable;
             this.BaseTable = baseTable;
-            this.COLRTable = colrTable;
-            this.CPALTable = cpalTable;
+            SetColorAndPalTable(colrTable, cpalTable);
             //---------------------------
             //fill glyph definition            
             if (gdefTable != null)
@@ -605,7 +621,13 @@ namespace OpenFontSharp
         /// <summary>Copies a bitmap glyph's encoded image bytes into a stream.</summary>
         /// <param name="glyph">A glyph from this bitmap typeface.</param>
         /// <param name="output">The destination stream.</param>
-        /// <remarks>Requires an untrimmed bitmap font.</remarks>
+        /// <remarks>
+        /// Requires an untrimmed bitmap font. Uses the first strike. EBDT data is packed pixels;
+        /// CBDT image formats 17–19 return encoded PNG bytes. No image decoding is performed.
+        /// Missing glyph images in the selected strike produce no output.
+        /// EBDT formats 1/6 are row-byte-aligned; formats 2/5/7 are bit-packed.
+        /// Vertical strike layouts are not supported.
+        /// </remarks>
         public void ReadBitmapContent(Glyph glyph, System.IO.Stream output)
         {
             _bitmapFontGlyphSource!.CopyBitmapContent(glyph, output);
@@ -772,4 +794,3 @@ namespace OpenFontSharp
 
 
 }
-
