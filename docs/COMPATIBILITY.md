@@ -98,6 +98,7 @@ Colour/bitmap rendering and colour/bitmap-aware subsetting remain out of scope. 
 - The basic shaper is not a complex-script, bidi, or supplementary-plane shaping engine and does not apply GPOS pair adjustments.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
+- CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3); CFF2 and Type 1 charstrings are not subset.
 
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 

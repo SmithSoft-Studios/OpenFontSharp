@@ -1,8 +1,8 @@
 namespace OpenFontSharp.Subsetting;
 
 /// <summary>
-/// Subsets a 'CFF ' table (CFF version 1, name-keyed) by rebuilding the CharStrings
-/// INDEX and charset for the retained glyphs.
+/// Subsets a 'CFF ' table (CFF version 1) by rebuilding the CharStrings INDEX and charset
+/// for the retained glyphs.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -12,8 +12,8 @@ namespace OpenFontSharp.Subsetting;
 /// keeps the subset simple and exact at the cost of some size.
 /// </para>
 /// <para>
-/// Not supported, and reported with <see cref="NotSupportedException"/>: CID-keyed fonts
-/// (ROS/FDArray/FDSelect), fonts with more than one Top DICT, Type 1 charstrings,
+/// Not supported, and reported with <see cref="NotSupportedException"/>: fonts with
+/// more than one Top DICT, Type 1 charstrings,
 /// synthetic fonts, the predefined Expert charsets, and glyphs composed with the
 /// deprecated <c>seac</c> form of <c>endchar</c>, whose components the subset would
 /// otherwise silently lose.
@@ -71,19 +71,24 @@ public static class CffSubsetBuilder
 
         var topDict = Dict.Parse(topDictIndex.Item(cff, 0));
 
-        if (topDict.Has(OpRos) || topDict.Has(OpFdArray) || topDict.Has(OpFdSelect))
-            throw new NotSupportedException("CID-keyed CFF fonts cannot be subset.");
+        bool cidKeyed = topDict.Has(OpRos) || topDict.Has(OpFdArray) || topDict.Has(OpFdSelect);
+        if (cidKeyed && (!topDict.Has(OpRos) || !topDict.Has(OpFdArray)))
+            throw new InvalidDataException("A CID-keyed CFF Top DICT must have ROS and FDArray entries.");
+        if (cidKeyed && (!topDict.Has(OpCharset) || topDict.Int(OpCharset, 0) <= 2))
+            throw new InvalidDataException("A CID-keyed CFF font must have a custom charset.");
         if (topDict.Has(OpSyntheticBase))
             throw new NotSupportedException("Synthetic CFF fonts cannot be subset.");
         if (topDict.Has(OpCharstringType) && topDict.Int(OpCharstringType, 0) != 2)
             throw new NotSupportedException("Only Type 2 charstrings can be subset.");
-        if (!topDict.Has(OpCharStrings) || !topDict.Has(OpPrivate))
+        if (!topDict.Has(OpCharStrings) || (!cidKeyed && !topDict.Has(OpPrivate)))
             throw new InvalidDataException("The Top DICT has no CharStrings or Private entry.");
 
         var charStrings = Index.Read(cff, topDict.Int(OpCharStrings, 0));
         int glyphCount = charStrings.Count;
 
         var sids = ReadCharset(cff, topDict.Has(OpCharset) ? topDict.Int(OpCharset, 0) : 0, glyphCount);
+        if (cidKeyed)
+            return BuildCidKeyed(cff, topDict, nameIndex, stringIndex, globalSubrs, charStrings, sids, retainedGlyphs);
 
         int privateSize = topDict.Int(OpPrivate, 0);
         int privateOffset = topDict.Int(OpPrivate, 1);
@@ -155,7 +160,258 @@ public static class CffSubsetBuilder
         return output.ToArray();
     }
 
-    /// <summary>Reads the charset into a SID per glyph id.</summary>
+    private static byte[] BuildCidKeyed(
+        byte[] cff,
+        Dict topDict,
+        Index nameIndex,
+        Index stringIndex,
+        Index globalSubrs,
+        Index charStrings,
+        ushort[] cids,
+        IReadOnlyList<ushort> retainedGlyphs)
+    {
+        var fdArray = Index.Read(cff, topDict.Int(OpFdArray, 0));
+        if (fdArray.Count == 0)
+            throw new InvalidDataException("A CID-keyed CFF font has an empty FDArray.");
+
+        int[] sourceSelectors;
+        int sourceFdSelectFormat = 3;
+        if (topDict.Has(OpFdSelect))
+        {
+            int sourceFdSelectOffset = topDict.Int(OpFdSelect, 0);
+            sourceFdSelectFormat = ReadFdSelectFormat(cff, sourceFdSelectOffset);
+            sourceSelectors = ReadFdSelect(cff, sourceFdSelectOffset, charStrings.Count, fdArray.Count);
+        }
+        else
+        {
+            if (fdArray.Count != 1)
+                throw new InvalidDataException("A CID-keyed CFF font with multiple FDs must have an FDSelect.");
+            sourceSelectors = new int[charStrings.Count];
+        }
+
+        var sourceFontDicts = new CidFontDict[fdArray.Count];
+        for (int fd = 0; fd < fdArray.Count; fd++)
+        {
+            var dict = Dict.Parse(fdArray.Item(cff, fd));
+            byte[] privateBytes = [];
+            byte[] localSubrBytes = [];
+            Index? localSubrs = null;
+            bool hasPrivate = dict.Has(OpPrivate);
+
+            if (hasPrivate)
+            {
+                int privateSize = dict.Int(OpPrivate, 0);
+                int privateOffset = dict.Int(OpPrivate, 1);
+                var privateDict = Dict.Parse(cff.AsSpan(privateOffset, privateSize));
+                localSubrs = privateDict.Has(OpSubrs)
+                    ? Index.Read(cff, privateOffset + privateDict.Int(OpSubrs, 0))
+                    : null;
+                localSubrBytes = localSubrs is { } local
+                    ? cff.AsSpan(local.Start, local.End - local.Start).ToArray()
+                    : [];
+
+                var privateEntries = privateDict.Without(OpSubrs);
+                privateBytes = localSubrs is null
+                    ? privateEntries
+                    : [.. privateEntries, .. Dict.Offset(privateEntries.Length + Dict.OffsetEntryLength), OpSubrs];
+            }
+
+            sourceFontDicts[fd] = new CidFontDict(dict, hasPrivate, privateBytes, localSubrBytes, localSubrs);
+        }
+
+        foreach (var glyph in retainedGlyphs)
+        {
+            int fd = sourceSelectors[glyph];
+            var scanner = new CharStringScanner(cff, globalSubrs, sourceFontDicts[fd].LocalSubrs);
+            if (scanner.UsesSeac(charStrings.Item(cff, glyph)))
+            {
+                throw new NotSupportedException(
+                    $"Glyph {glyph} is built with the deprecated 'seac' accent operator, whose " +
+                    "components this subsetter does not follow.");
+            }
+        }
+
+        var usedFds = retainedGlyphs.Select(glyph => sourceSelectors[glyph]).Distinct().Order().ToArray();
+        if (usedFds.Length > byte.MaxValue + 1)
+            throw new NotSupportedException("CID-keyed CFF fonts cannot use more than 256 retained FDs.");
+        var fdMap = usedFds.Select((oldFd, newFd) => (oldFd, newFd)).ToDictionary(pair => pair.oldFd, pair => pair.newFd);
+        var selectors = retainedGlyphs.Select(glyph => fdMap[sourceSelectors[glyph]]).ToArray();
+
+        var nameBytes = cff.AsSpan(nameIndex.Start, nameIndex.End - nameIndex.Start).ToArray();
+        var stringBytes = cff.AsSpan(stringIndex.Start, stringIndex.End - stringIndex.Start).ToArray();
+        var globalSubrBytes = cff.AsSpan(globalSubrs.Start, globalSubrs.End - globalSubrs.Start).ToArray();
+        var charsetBytes = BuildCharset(cids, retainedGlyphs);
+        var charStringsBytes = Index.Write(retainedGlyphs.Select(glyph => charStrings.Item(cff, glyph).ToArray()).ToList());
+        // The CFF specification requires FDSelect in every CID-keyed font, even when only one FD remains.
+        var fdSelectBytes = BuildFdSelect(selectors, sourceFdSelectFormat);
+
+        var topEntries = topDict.Without(
+            OpCharset, OpEncoding, OpCharStrings, OpPrivate, OpUniqueId, OpXuid, OpFdArray, OpFdSelect);
+        byte[] Top(int charsetOffset, int charStringsOffset, int fdArrayOffset, int fdSelectOffset)
+        {
+            using var dict = new MemoryStream();
+            dict.Write(topEntries);
+            dict.Write(Dict.Offset(charsetOffset));
+            dict.WriteByte(OpCharset);
+            dict.Write(Dict.Offset(charStringsOffset));
+            dict.WriteByte(OpCharStrings);
+            dict.Write(Dict.Offset(fdArrayOffset));
+            dict.WriteByte(12);
+            dict.WriteByte(36);
+            dict.Write(Dict.Offset(fdSelectOffset));
+            dict.WriteByte(12);
+            dict.WriteByte(37);
+            return dict.ToArray();
+        }
+
+        int topDictLength = Top(0, 0, 0, 0).Length;
+        int topIndexLength = Index.WrittenLength(topDictLength);
+        int prefixLength = 4 + nameBytes.Length + topIndexLength + stringBytes.Length + globalSubrBytes.Length;
+        int charsetOffset = prefixLength;
+        int fdSelectOffset = charsetOffset + charsetBytes.Length;
+        int charStringsOffset = charsetOffset + charsetBytes.Length + fdSelectBytes.Length;
+        int fdArrayOffset = charStringsOffset + charStringsBytes.Length;
+
+        byte[] FontDictBytes(int fd, int privateOffset)
+        {
+            var source = sourceFontDicts[fd];
+            var entries = source.Dict.Without(OpPrivate);
+            return source.HasPrivate
+                ? [.. entries, .. Dict.Offset(source.PrivateBytes.Length), .. Dict.Offset(privateOffset), OpPrivate]
+                : entries;
+        }
+
+        var provisionalFdArray = Index.Write(usedFds.Select(fd => FontDictBytes(fd, 0)).ToList());
+        int privateOffsetCursor = fdArrayOffset + provisionalFdArray.Length;
+        var privateOffsets = new Dictionary<int, int>();
+        foreach (int fd in usedFds)
+        {
+            var source = sourceFontDicts[fd];
+            if (!source.HasPrivate)
+                continue;
+
+            privateOffsets[fd] = privateOffsetCursor;
+            privateOffsetCursor += source.PrivateBytes.Length + source.LocalSubrBytes.Length;
+        }
+
+        var fdArrayBytes = Index.Write(usedFds
+            .Select(fd => FontDictBytes(fd, privateOffsets.GetValueOrDefault(fd)))
+            .ToList());
+        byte[] newTopDict = Top(charsetOffset, charStringsOffset, fdArrayOffset, fdSelectOffset);
+
+        using var output = new MemoryStream();
+        output.Write([1, 0, 4, 4]);
+        output.Write(nameBytes);
+        output.Write(Index.Write([newTopDict]));
+        output.Write(stringBytes);
+        output.Write(globalSubrBytes);
+        output.Write(charsetBytes);
+        output.Write(fdSelectBytes);
+        output.Write(charStringsBytes);
+        output.Write(fdArrayBytes);
+        foreach (int fd in usedFds)
+        {
+            var source = sourceFontDicts[fd];
+            if (!source.HasPrivate)
+                continue;
+            output.Write(source.PrivateBytes);
+            output.Write(source.LocalSubrBytes);
+        }
+        return output.ToArray();
+    }
+
+    private static int ReadFdSelectFormat(byte[] cff, int offset)
+    {
+        if ((uint)offset >= (uint)cff.Length)
+            throw new InvalidDataException("The FDSelect offset is outside the CFF table.");
+        return cff[offset];
+    }
+
+    private static int[] ReadFdSelect(byte[] cff, int offset, int glyphCount, int fdCount)
+    {
+        int format = ReadFdSelectFormat(cff, offset);
+        var selectors = new int[glyphCount];
+        if (format == 0)
+        {
+            if (offset + 1 + glyphCount > cff.Length)
+                throw new InvalidDataException("The FDSelect format 0 array is truncated.");
+            for (int glyph = 0; glyph < glyphCount; glyph++)
+            {
+                selectors[glyph] = cff[offset + 1 + glyph];
+                if (selectors[glyph] >= fdCount)
+                    throw new InvalidDataException($"FDSelect references missing FD {selectors[glyph]}.");
+            }
+            return selectors;
+        }
+
+        if (format != 3)
+            throw new NotSupportedException($"FDSelect format {format} cannot be subset.");
+        if (offset + 3 > cff.Length)
+            throw new InvalidDataException("The FDSelect format 3 header is truncated.");
+        int rangeCount = ReadU16(cff, offset + 1);
+        if (rangeCount == 0 || offset + 3L + (rangeCount * 3L) + 2 > cff.Length)
+            throw new InvalidDataException("The FDSelect format 3 ranges are truncated or empty.");
+
+        int cursor = offset + 3;
+        int first = ReadU16(cff, cursor);
+        if (first != 0)
+            throw new InvalidDataException("The first FDSelect format 3 range must begin at glyph 0.");
+        for (int range = 0; range < rangeCount; range++)
+        {
+            int start = ReadU16(cff, cursor);
+            int fd = cff[cursor + 2];
+            int end = ReadU16(cff, cursor + 3);
+            if (end <= start || fd >= fdCount)
+                throw new InvalidDataException("The FDSelect format 3 ranges are invalid.");
+            for (int glyph = start; glyph < end && glyph < glyphCount; glyph++)
+                selectors[glyph] = fd;
+            cursor += 3;
+        }
+        if (ReadU16(cff, cursor) != glyphCount)
+            throw new InvalidDataException("The FDSelect format 3 sentinel does not match the glyph count.");
+        return selectors;
+    }
+
+    private static byte[] BuildFdSelect(IReadOnlyList<int> selectors, int format)
+    {
+        if (format == 0)
+        {
+            if (selectors.Any(fd => fd > byte.MaxValue))
+                throw new NotSupportedException("CID-keyed CFF FD indices must fit in one byte.");
+            return [0, .. selectors.Select(fd => (byte)fd)];
+        }
+
+        if (format != 3)
+            throw new NotSupportedException($"FDSelect format {format} cannot be subset.");
+
+        var ranges = new List<(ushort FirstGlyph, byte Fd)> { (0, (byte)selectors[0]) };
+        for (int glyph = 1; glyph < selectors.Count; glyph++)
+        {
+            if (selectors[glyph] != selectors[glyph - 1])
+                ranges.Add(((ushort)glyph, (byte)selectors[glyph]));
+        }
+        if (ranges.Count > ushort.MaxValue)
+            throw new NotSupportedException("The rebuilt FDSelect has too many format 3 ranges.");
+
+        using var output = new MemoryStream();
+        output.WriteByte(3);
+        WriteU16(output, (ushort)ranges.Count);
+        foreach (var (firstGlyph, fd) in ranges)
+        {
+            WriteU16(output, firstGlyph);
+            output.WriteByte(fd);
+        }
+        WriteU16(output, (ushort)selectors.Count);
+        return output.ToArray();
+    }
+
+    private static void WriteU16(Stream output, ushort value)
+    {
+        output.WriteByte((byte)(value >> 8));
+        output.WriteByte((byte)value);
+    }
+
+    /// <summary>Reads the charset into a SID or CID per glyph id.</summary>
     private static ushort[] ReadCharset(byte[] cff, int offset, int glyphCount)
     {
         var sids = new ushort[glyphCount];
@@ -203,7 +459,7 @@ public static class CffSubsetBuilder
         return sids;
     }
 
-    /// <summary>Writes a format 0 charset naming each retained glyph after .notdef.</summary>
+    /// <summary>Writes a format 0 charset with each retained glyph's original SID or CID.</summary>
     private static byte[] BuildCharset(ushort[] sids, IReadOnlyList<ushort> retainedGlyphs)
     {
         var charset = new byte[1 + ((retainedGlyphs.Count - 1) * 2)];
@@ -217,6 +473,8 @@ public static class CffSubsetBuilder
     }
 
     private static ushort ReadU16(byte[] data, int offset) => (ushort)((data[offset] << 8) | data[offset + 1]);
+
+    private sealed record CidFontDict(Dict Dict, bool HasPrivate, byte[] PrivateBytes, byte[] LocalSubrBytes, Index? LocalSubrs);
 
     /// <summary>A CFF INDEX located in the table.</summary>
     private readonly record struct Index(int Start, int End, int Count, int OffSize, int OffsetsStart, int DataStart)
