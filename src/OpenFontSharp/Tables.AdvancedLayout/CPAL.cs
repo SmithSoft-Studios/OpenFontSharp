@@ -14,6 +14,10 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         //
 
         byte[] _colorBGRABuffer = Array.Empty<byte>();
+        PaletteColor[] _colors = Array.Empty<PaletteColor>();
+        ushort[] _paletteIndices = Array.Empty<ushort>();
+        internal ushort NumPaletteEntries { get; private set; }
+        internal int PaletteCount => _paletteIndices.Length;
 
         // Palette Table Header
         // Read the CPAL table
@@ -21,7 +25,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         /// <inheritdoc />
         protected override void ReadContentFrom(BinaryReader reader)
         {
-            long beginAt = reader.BaseStream.Position;
+            var bounds = new BoundedTableReader(reader, TableLength, Name);
+            bounds.RequireRange(0, 12);
 
             //The CPAL table begins with a header that starts with a version number.
             //Currently, only versions 0 and 1 are defined.
@@ -54,24 +59,52 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //Offset32 	offsetPaletteEntryLabelArray 	    Offset from the beginning of CPAL table to the Palette Entry Label Array. Set to 0 if no array is provided.
 
             ushort version = reader.ReadUInt16();
-            ushort numPaletteEntries = reader.ReadUInt16(); // XXX: unused?
+            if (version > 1)
+                throw new OpenFontNotSupportedException($"CPAL version {version} is not supported; only versions 0 and 1 are supported.");
+            NumPaletteEntries = reader.ReadUInt16();
             ushort numPalettes = reader.ReadUInt16();
             ColorCount = reader.ReadUInt16();           //numColorRecords
             uint offsetFirstColorRecord = reader.ReadUInt32();   //Offset from the beginning of CPAL table to the first ColorRecord.
+            uint headerLength = (uint)(12 + 2 * numPalettes + (version == 1 ? 12 : 0));
+            bounds.RequireRange(0, headerLength);
+            bounds.RequireRange(offsetFirstColorRecord, (ulong)ColorCount * 4);
+            if (NumPaletteEntries == 0 || numPalettes == 0 || ColorCount == 0 ||
+                offsetFirstColorRecord < headerLength)
+                throw new InvalidDataException("CPAL must contain palettes and colour records after its header.");
+            // Counts are uint16; do not expand shared records into numPalettes * numPaletteEntries.
             Palettes = Utils.ReadUInt16Array(reader, numPalettes); //colorRecordIndices, Index of each palette’s first color record in the combined color record array.
+            foreach (ushort first in Palettes)
+                if (first + NumPaletteEntries > ColorCount)
+                    throw new InvalidDataException("CPAL palette range exceeds the colour record array.");
+            _paletteIndices = (ushort[])Palettes.Clone();
 
-#if DEBUG
             if (version == 1)
             {
-                //Offset32 	offsetPaletteTypeArray 	            Offset from the beginning of CPAL table to the Palette Type Array. Set to 0 if no array is provided.
-                //Offset32 	offsetPaletteLabelArray 	        Offset from the beginning of CPAL table to the Palette Labels Array. Set to 0 if no array is provided.
-                //Offset32 	offsetPaletteEntryLabelArray 	    Offset from the beginning of CPAL table to the Palette Entry Label Array. Set to 0 if no array is provided.
+                uint types = reader.ReadUInt32();
+                uint labels = reader.ReadUInt32();
+                uint entryLabels = reader.ReadUInt32();
+                if (types != 0) bounds.RequireRange(types, (ulong)numPalettes * 4);
+                if (labels != 0) bounds.RequireRange(labels, (ulong)numPalettes * 2);
+                if (entryLabels != 0) bounds.RequireRange(entryLabels, (ulong)NumPaletteEntries * 2);
             }
-#endif
 
             //move to color records
-            reader.BaseStream.Seek(beginAt + offsetFirstColorRecord, SeekOrigin.Begin);
+            bounds.Seek(offsetFirstColorRecord, (ulong)ColorCount * 4);
             _colorBGRABuffer = reader.ReadBytes(4 * ColorCount);
+            if (_colorBGRABuffer.Length != 4 * ColorCount)
+                throw new InvalidDataException("CPAL colour records are truncated.");
+            _colors = new PaletteColor[ColorCount];
+            for (int i = 0; i < _colors.Length; i++)
+                _colors[i] = new PaletteColor(_colorBGRABuffer[4 * i], _colorBGRABuffer[4 * i + 1],
+                    _colorBGRABuffer[4 * i + 2], _colorBGRABuffer[4 * i + 3]);
+        }
+
+        internal IReadOnlyList<PaletteColor> GetPalette(int index)
+        {
+            if ((uint)index >= (uint)_paletteIndices.Length)
+                throw new ArgumentOutOfRangeException(nameof(index));
+            return new System.Collections.ObjectModel.ReadOnlyCollection<PaletteColor>(
+                new ArraySegment<PaletteColor>(_colors, _paletteIndices[index], NumPaletteEntries));
         }
 
         /// <summary>Gets the starting color-record index for each palette.</summary>
@@ -85,8 +118,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
         /// <param name="g">Receives the green component.</param>
         /// <param name="b">Receives the blue component.</param>
         /// <param name="a">Receives the alpha component.</param>
+        /// <exception cref="ArgumentOutOfRangeException">The colour index is outside the loaded records.</exception>
         public void GetColor(int colorIndex, out byte r, out byte g, out byte b, out byte a)
         {
+            if ((uint)colorIndex >= ColorCount)
+                throw new ArgumentOutOfRangeException(nameof(colorIndex));
             //Each color record has BGRA values. The color space for these values is sRGB.
             //Type    Name    Description
             //uint8   blue    Blue value(B0).

@@ -2,111 +2,88 @@
 
 namespace OpenFontSharp.Tables.BitmapAndSvgFonts
 {
-    //test font=> NotoColorEmoji.ttf
-
-    //from https://docs.microsoft.com/en-us/typography/opentype/spec/cbdt
-
-    //Table structure
-
-    //The CBDT table is used to embed color bitmap glyph data. It is used together with the CBLC table,
-    //which provides embedded bitmap locators.
-    //The formats of these two tables are backward compatible with the EBDT and EBLC tables
-    //used for embedded monochrome and grayscale bitmaps.
-
-    //The CBDT table begins with a header containing simply the table version number.
-    //Type 	    Name 	        Description
-    //uint16 	majorVersion 	Major version of the CBDT table, = 3.
-    //uint16 	minorVersion 	Minor version of the CBDT table, = 0.
-
-    //Note that the first version of the CBDT table is 3.0.
-
-    //The rest of the CBDT table is a collection of bitmap data.
-    //The data can be presented in three possible formats,
-    //indicated by information in the CBLC table.
-    //Some of the formats contain metric information plus image data, 
-    //and other formats contain only the image data. Long word alignment is not required for these subtables;
-    //byte alignment is sufficient.
-
     class CBDT : TableEntry, IDisposable
     {
         public const string _N = "CBDT";
         public override string Name => _N;
+        protected virtual ushort MajorVersion => 3;
+        byte[] _data = [];
+        readonly Dictionary<ushort, (int Offset, int Length)> _images = new();
 
-        readonly GlyphBitmapDataFmt17 _format17 = new GlyphBitmapDataFmt17();
-        readonly GlyphBitmapDataFmt18 _format18 = new GlyphBitmapDataFmt18();
-        readonly GlyphBitmapDataFmt19 _format19 = new GlyphBitmapDataFmt19();
-
-
-        System.IO.MemoryStream? _ms; //sub-stream contains image data
-        OpenFontSharp.ByteOrderSwappingBinaryReader? _loadedReader;
-        OpenFontSharp.ByteOrderSwappingBinaryReader _binReader
-        {
-            get => _loadedReader ?? throw new NullReferenceException("Bitmap data has not been loaded or has been disposed.");
-            set => _loadedReader = value;
-        }
-
-        public void Dispose()
-        {
-            RemoveOldMemoryStreamAndReaders();
-        }
-
+        public void Dispose() => RemoveOldMemoryStreamAndReaders();
         public void RemoveOldMemoryStreamAndReaders()
         {
-            try
-            {
-                if (_loadedReader != null)
-                {
-                    ((System.IDisposable)_binReader).Dispose();
-                    _loadedReader = null;
-                }
-                if (_ms != null)
-                {
-                    _ms.Dispose();
-                    _ms = null;
-                }
-            }
-            catch (Exception)
-            {
-                //
-            }
+            _data = [];
+            _images.Clear();
         }
+
         protected override void ReadContentFrom(BinaryReader reader)
         {
-
-            //we copy data from the input mem stream
-            //and store inside this table for later use.
             RemoveOldMemoryStreamAndReaders();
-
-            //-------------------
-            byte[] data = reader.ReadBytes((int)this.Header.Length);//***
-            _ms = new MemoryStream(data);
-            _binReader = new ByteOrderSwappingBinaryReader(_ms);
+            _data = BitmapTableData.Read(reader, Header.Length, 256 * 1024 * 1024);
+            var input = new BitmapTableData(_data);
+            if (input.U16() != MajorVersion || input.U16() != 0)
+                throw new OpenFontNotSupportedException($"Unsupported {Name} version.");
         }
+
+        internal void FillGlyphInfo(Glyph glyph, BitmapGlyphRecord record, bool retainImage = true)
+        {
+            var input = new BitmapTableData(_data) { Position = record.Offset };
+            if ((ulong)record.Offset + record.Length > (ulong)_data.Length)
+                throw new InvalidDataException("Bitmap glyph image is outside its data table.");
+            input.Limit = (long)record.Offset + record.Length;
+            byte[] metrics;
+            switch (record.ImageFormat)
+            {
+                case 1:
+                case 2:
+                case 17:
+                    metrics = input.Bytes(5);
+                    break;
+                case 6:
+                case 7:
+                case 18:
+                    metrics = input.Bytes(8);
+                    break;
+                case 5:
+                case 19:
+                    metrics = record.SharedMetrics ??
+                        throw new InvalidDataException("Bitmap image format requires shared index metrics.");
+                    break;
+                default:
+                    // Composite EBDT formats 8/9 and reserved formats are not rendered.
+                    throw new OpenFontNotSupportedException($"Unsupported bitmap image format {record.ImageFormat}.");
+            }
+            if (record.ImageFormat >= 17 && MajorVersion != 3)
+                throw new OpenFontNotSupportedException($"Bitmap image format {record.ImageFormat} requires CBDT.");
+            int height = metrics[0], width = metrics[1];
+            int bearingX = (sbyte)metrics[2], bearingY = (sbyte)metrics[3];
+            glyph.BitmapGlyphAdvanceWidth = metrics[4];
+            glyph.Bounds = new Bounds((short)bearingX, (short)(bearingY - height),
+                (short)(bearingX + width), (short)bearingY);
+            long length;
+            if (record.ImageFormat >= 17)
+                length = input.U32();
+            else if (record.ImageFormat is 1 or 6)
+                length = ((width * record.BitDepth + 7) / 8) * height;
+            else
+                length = (width * height * record.BitDepth + 7) / 8;
+            input.Require(length);
+            if (retainImage) _images[glyph.GlyphIndex] = ((int)input.Position, (int)length);
+        }
+
         public void FillGlyphInfo(Glyph glyph)
         {
-            //int srcOffset, int srcLen, int srcFormat,
-            _binReader.BaseStream.Position = glyph.BitmapStreamOffset;
-            switch (glyph.BitmapFormat)
-            {
-                case 17: _format17.FillGlyphInfo(_binReader, glyph); break;
-                case 18: _format18.FillGlyphInfo(_binReader, glyph); break;
-                case 19: _format19.FillGlyphInfo(_binReader, glyph); break;
-                default:
-                    throw new OpenFontNotSupportedException();
-            }
+            if (!_images.ContainsKey(glyph.GlyphIndex))
+                throw new InvalidDataException("Bitmap glyph metrics require the location table record.");
         }
-        public void CopyBitmapContent(Glyph glyph, System.IO.Stream outputStream)
+
+        public void CopyBitmapContent(Glyph glyph, Stream outputStream)
         {
-            //1 
-            _binReader.BaseStream.Position = glyph.BitmapStreamOffset;
-            switch (glyph.BitmapFormat)
-            {
-                case 17: _format17.ReadRawBitmap(_binReader, glyph, outputStream); break;
-                case 18: _format18.ReadRawBitmap(_binReader, glyph, outputStream); break;
-                case 19: _format19.ReadRawBitmap(_binReader, glyph, outputStream); break;
-                default:
-                    throw new OpenFontNotSupportedException();
-            }
+            if (_images.TryGetValue(glyph.GlyphIndex, out var image))
+                outputStream.Write(_data, image.Offset, image.Length);
+            else if (glyph.BitmapFormat != 0)
+                throw new InvalidDataException("Bitmap image data has not been validated.");
         }
     }
 }
