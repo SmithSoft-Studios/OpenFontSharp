@@ -155,8 +155,8 @@ public static class FontSubsetter
         if (tables.Has("CFF2") || !tables.Has("CFF "))
             throw new NotSupportedException("Fonts with CFF2 outlines (variable OpenType/CFF) cannot be subset.");
 
-        // CFF glyphs are self-contained (seac composites are rejected by the builder),
-        // so the retained set is .notdef plus the requested glyphs.
+        // Start with .notdef and the requested glyphs; CFF seac dependencies are added
+        // by the builder before the subset and glyph-id map are written.
         var needed = new SortedSet<ushort> { 0 };
         foreach (var glyphId in usedGlyphIds)
         {
@@ -168,13 +168,17 @@ public static class FontSubsetter
         if (retained.Count >= tables.NumGlyphs)
             return Unchanged(tables);
 
-        var glyphIdMap = BuildGlyphIdMap(retained);
+        var cffSubset = CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained, out var expanded);
+        if (expanded.Count >= tables.NumGlyphs)
+            return Unchanged(tables);
+
+        var glyphIdMap = BuildGlyphIdMap(expanded);
 
         var writer = new TtfWriter(TtfWriter.CffVersion);
         writer.AddTable("head", BuildHead(tables, longLoca: false));
-        writer.AddTable("CFF ", CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained));
+        writer.AddTable("CFF ", cffSubset);
 
-        return Finish(writer, tables, retained, glyphIdMap);
+        return Finish(writer, tables, expanded, glyphIdMap);
     }
 
     private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds)
