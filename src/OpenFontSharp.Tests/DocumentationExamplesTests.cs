@@ -41,17 +41,20 @@ public class DocumentationExamplesTests
         ushort Remap(ushort oldId) =>
             subset.GlyphIdMap.Count == 0 ? oldId : subset.GlyphIdMap[oldId];
 
-        var cidToUnicode = new Dictionary<int, int>();
+        var cidToUnicode = new Dictionary<int, int[]>();
         foreach (char c in text)
-            cidToUnicode.TryAdd(Remap(font.GetGlyphIndex(c)), c);
+            cidToUnicode.TryAdd(Remap(font.GetGlyphIndex(c)), new[] { (int)c });
 
         var cmap = Encoding.ASCII.GetString(ToUnicodeCMapBuilder.Build(cidToUnicode));
         var parsedSubset = FontFiles.Load(subset.FontData);
         Assert.True(subset.RetainedGlyphCount < subset.OriginalGlyphCount);
         foreach (var entry in cidToUnicode)
         {
-            Assert.Contains($"<{entry.Key:X4}> <{entry.Value:X4}>", cmap);
-            Assert.Equal(font.GetAdvanceWidthFromGlyphIndex(font.GetGlyphIndex(entry.Value)),
+            var destination = string.Concat(entry.Value.Select(scalar =>
+                Convert.ToHexString(Encoding.BigEndianUnicode.GetBytes(char.ConvertFromUtf32(scalar)))));
+            var character = (char)entry.Value[0];
+            Assert.Contains($"<{entry.Key:X4}> <{destination}>", cmap);
+            Assert.Equal(font.GetAdvanceWidthFromGlyphIndex(font.GetGlyphIndex(character)),
                 parsedSubset.GetAdvanceWidthFromGlyphIndex((ushort)entry.Key));
         }
         Assert.Equal((ushort)0, parsedSubset.GetGlyphIndex('H'));
