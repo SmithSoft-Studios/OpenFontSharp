@@ -155,14 +155,14 @@ Woff2DefaultBrotliDecompressFunc.DecompressHandler = (compressed, output) =>
 `Woff2Converter.ToSfnt(woff2Bytes)` returns standalone TTF/OTF bytes, reconstructing transformed `glyf`, `loca`, and `hmtx` tables per the [W3C WOFF2 Recommendation](https://www.w3.org/TR/WOFF2/). An optional second argument supplies a per-call Brotli decoder instead of the default hook. No Brotli package is required by the library; without a hook it throws `NotSupportedException`. WOFF2 collections are not supported. The byte-based WOFF1 subsetter uses built-in .NET zlib decompression and does not need the reader hook.
 
 ## Font subsetting
-`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, glyph outlines are copied verbatim unless axis coordinates are supplied for TrueType variable-font instantiation.
+`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, TrueType and CFF1 outlines are copied verbatim; CFF2 charstrings are reduced to their default instance and emitted as static CFF1, unless axis coordinates are supplied for TrueType variable-font instantiation.
 
 ```csharp
 var result = FontSubsetter.Subset(fontBytes, usedGlyphIds);        // or Subset(typeface, usedGlyphIds)
 var member = FontSubsetter.Subset(ttcBytes, fontIndex, usedGlyphIds); // one font of a collection
 ```
 
-The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Without explicit instantiation, when every glyph is requested the font is returned whole and `GlyphIdMap` is empty. An empty map means glyph IDs are unchanged, not that the output has no glyphs. Certain recognized sfnt inputs without usable outline tables are also returned whole; check the result rather than assuming a size reduction. A format that cannot be subset throws `NotSupportedException`; the subsetter never invents missing outlines.
+The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Without explicit instantiation, when every glyph is requested glyph IDs are unchanged and `GlyphIdMap` is empty (CFF2 is still converted to static CFF1 outlines). An empty map means glyph IDs are unchanged, not that the output has no glyphs. Certain recognized sfnt inputs without usable outline tables are also returned whole; check the result rather than assuming a size reduction. A format that cannot be subset throws `NotSupportedException`; the subsetter never invents missing outlines.
 
 | Input | Test font | Result |
 |---|---|---|
@@ -170,8 +170,8 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Witho
 | TrueType variable font | Shantell Sans (default and non-default); synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
 | CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
-| CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Throws `NotSupportedException` |
-| OpenType with CFF2 outlines (variable `.otf`) | Great Vibes with the table relabelled `CFF2` | Throws `NotSupportedException` |
+| CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Supported: the base and accent glyphs are retained automatically (resolved through StandardEncoding and the charset); unresolvable components throw `NotSupportedException` |
+| OpenType with CFF2 outlines (variable `.otf`) | Synthetic CFF2 with `blend` / `vsindex` | Supported: reduced to the default instance and emitted as static CFF1 (`CFF `) in an `OTTO` font; `CFF2`, `fvar`, `avar`, `HVAR`, `MVAR` and `STAT` are dropped |
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |

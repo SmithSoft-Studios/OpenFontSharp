@@ -102,12 +102,19 @@ namespace OpenFontSharp.Tables.CFF
                 case 2:
                     {
                         Cff2Parser cff2 = new Cff2Parser();
-                        cff2.ParseAfterHeader(reader);
+                        reader.BaseStream.Position = startAt;
+                        byte[] cff2Data = reader.ReadBytes(checked((int)TableLength));
+                        _cff1FontSet = cff2.Parse(cff2Data);
                     }
                     break;
             }
         }
 
+    }
+
+    class CFF2Table : CFFTable
+    {
+        public override string Name => "CFF2";
     }
 
 
