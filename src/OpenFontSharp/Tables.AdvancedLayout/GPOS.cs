@@ -29,13 +29,38 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                                                 ushort lookupType, ushort lookupFlags,
                                                 ushort[] subTableOffsets, ushort markFilteringSet)
         {
-            LookupTable lookupTable = new LookupTable(lookupFlags, markFilteringSet);
+            LookupTable lookupTable = new LookupTable(lookupFlags, markFilteringSet)
+            {
+                LookupType = lookupType
+            };
             var subTables = new LookupSubTable[subTableOffsets.Length];
             lookupTable.SubTables = subTables;
+            long tableStart = Header.Offset;
+            long tableEnd = tableStart + TableLength;
 
             for (int i = 0; i < subTableOffsets.Length; ++i)
             {
-                LookupSubTable subTable = LookupTable.ReadSubTable(lookupType, reader, lookupTablePos + subTableOffsets[i]);
+                long subTableStartAt = lookupTablePos + subTableOffsets[i];
+                LookupSubTable subTable;
+                if (subTableOffsets[i] == 0 || subTableStartAt < tableStart || subTableStartAt >= tableEnd)
+                {
+                    subTable = new UnImplementedLookupSubTable("GPOS lookup subtable offset is outside the GPOS table.");
+                }
+                else
+                {
+                    try
+                    {
+                        subTable = LookupTable.ReadSubTable(lookupType, reader, subTableStartAt);
+                    }
+                    catch (Exception ex) when (ex is IndexOutOfRangeException
+                        or IOException
+                        or ArgumentOutOfRangeException
+                        or OverflowException
+                        or OpenFontNotSupportedException)
+                    {
+                        subTable = new UnImplementedLookupSubTable("Malformed GPOS lookup subtable.");
+                    }
+                }
                 subTable.OwnerGPos = this;
                 subTables[i] = subTable;
 
@@ -123,6 +148,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             public readonly ushort lookupFlags;
             /// <summary>Gets the index of the mark filtering set for this lookup.</summary>
             public readonly ushort markFilteringSet;
+            /// <summary>Gets the OpenType lookup type.</summary>
+            public ushort LookupType { get; internal set; }
             //--------------------------
             LookupSubTable[] _subTables = Array.Empty<LookupSubTable>();
 
@@ -295,11 +322,11 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 {
                     //find marker
                     CoverageTable covTable = this.CoverageTable;
-                    int lim = inputGlyphs.Count - 1;
-                    for (int i = 0; i < lim; ++i)
+                    int lim = Math.Min(inputGlyphs.Count - 1, Math.Max(0, startAt) + Math.Max(0, len));
+                    for (int i = Math.Max(0, startAt); i < lim; ++i)
                     {
                         int firstGlyphFound = covTable.FindPosition(inputGlyphs.GetGlyph(i, out short glyph_advW));
-                        if (firstGlyphFound > -1)
+                        if (firstGlyphFound >= 0 && firstGlyphFound < _pairSetTables.Length)
                         {
                             //test this with Palatino A-Y sequence
                             PairSetTable pairSet = _pairSetTables[firstGlyphFound];
@@ -356,40 +383,36 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     //but the Coverage table lists the glyph index only once
 
                     CoverageTable covTable = this.CoverageTable;
-                    int lim = inputGlyphs.Count - 1;
-                    for (int i = 0; i < lim; ++i) //start at 0
+                    int lim = Math.Min(inputGlyphs.Count - 1, Math.Max(0, startAt) + Math.Max(0, len));
+                    for (int i = Math.Max(0, startAt); i < lim; ++i)
                     {
                         ushort glyph1_index = inputGlyphs.GetGlyph(i, out short glyph_advW);
                         int record1Index = covTable.FindPosition(glyph1_index);
                         if (record1Index > -1)
                         {
-                            int class1_no = _class1Def.GetClassValue(glyph1_index);
-                            if (class1_no > -1)
+                            ushort glyph2_index = inputGlyphs.GetGlyph(i + 1, out short glyph_advW2);
+                            int class1_no = Math.Max(0, _class1Def.GetClassValue(glyph1_index));
+                            int class2_no = Math.Max(0, _class2Def.GetClassValue(glyph2_index));
+                            if (class1_no >= _class1records.Length)
+                                continue;
+
+                            Lk2Class1Record class1Rec = _class1records[class1_no];
+                            if (class2_no >= class1Rec.class2Records.Length)
+                                continue;
+
+                            //TODO: recheck for vertical writing ... (YAdvance)
+                            Lk2Class2Record pair = class1Rec.class2Records[class2_no];
+
+                            if (pair.value1 is { } v1)
                             {
-                                ushort glyph2_index = inputGlyphs.GetGlyph(i + 1, out short glyph_advW2);
-                                int class2_no = _class2Def.GetClassValue(glyph2_index);
+                                inputGlyphs.AppendGlyphOffset(i, v1.XPlacement, v1.YPlacement);
+                                inputGlyphs.AppendGlyphAdvance(i, v1.XAdvance, 0);
+                            }
 
-                                if (class2_no > -1)
-                                {
-                                    Lk2Class1Record class1Rec = _class1records[class1_no];
-                                    //TODO: recheck for vertical writing ... (YAdvance)
-                                    Lk2Class2Record pair = class1Rec.class2Records[class2_no];
-
-                                    ValueRecord? v1 = pair.value1;
-                                    ValueRecord? v2 = pair.value2;
-
-                                    if (v1 != null)
-                                    {
-                                        inputGlyphs.AppendGlyphOffset(i, v1.XPlacement, v1.YPlacement);
-                                        inputGlyphs.AppendGlyphAdvance(i, v1.XAdvance, 0);
-                                    }
-
-                                    if (v2 != null)
-                                    {
-                                        inputGlyphs.AppendGlyphOffset(i + 1, v2.XPlacement, v2.YPlacement);
-                                        inputGlyphs.AppendGlyphAdvance(i + 1, v2.XAdvance, 0);
-                                    }
-                                }
+                            if (pair.value2 is { } v2)
+                            {
+                                inputGlyphs.AppendGlyphOffset(i + 1, v2.XPlacement, v2.YPlacement);
+                                inputGlyphs.AppendGlyphAdvance(i + 1, v2.XAdvance, 0);
                             }
                         }
 
@@ -693,11 +716,25 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                             continue;
                         }
 
+                        if (baseFound >= BaseArrayTable.RecordCount || markFound >= MarkArrayTable.RecordCount)
+                        {
+                            continue;
+                        }
+
                         BaseRecord baseRecord = BaseArrayTable.GetBaseRecords(baseFound);
                         ushort markClass = MarkArrayTable.GetMarkClass(markFound);
+                        if (markClass >= baseRecord.anchors.Length)
+                        {
+                            continue;
+                        }
+
                         // find anchor on base glyph
                         AnchorPoint anchor = MarkArrayTable.GetAnchorPoint(markFound);
                         AnchorPoint prev_anchor = baseRecord.anchors[markClass];
+                        if (anchor is null || prev_anchor is null)
+                        {
+                            continue;
+                        }
                         inputGlyphs.GetOffset(j, out short prev_glyph_xoffset, out short prev_glyph_yoffset);
                         inputGlyphs.GetOffset(i, out short glyph_xoffset, out short glyph_yoffset);
                         int xoffset = prev_glyph_xoffset + prev_anchor.xcoord - (prev_glyph_adv_w + glyph_xoffset + anchor.xcoord);

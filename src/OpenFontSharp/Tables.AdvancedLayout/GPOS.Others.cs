@@ -392,6 +392,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //Offset16 	MarkAnchor 	            Offset to Anchor table-from beginning of MarkArray table
             internal MarkRecord[] _records = Array.Empty<MarkRecord>();
             internal AnchorPoint[] _anchorPoints = Array.Empty<AnchorPoint>();
+            public int RecordCount => _records.Length;
             public AnchorPoint GetAnchorPoint(int index)
             {
                 return _anchorPoints[index];
@@ -538,6 +539,8 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             //Instead, the index value of an Anchor table in the array defines the class value represented by the Anchor table.
 
             internal BaseRecord[] _records = Array.Empty<BaseRecord>();
+
+            public int RecordCount => _records.Length;
 
             public BaseRecord GetBaseRecords(int index)
             {
