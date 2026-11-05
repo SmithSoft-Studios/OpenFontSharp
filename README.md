@@ -176,12 +176,15 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |
 | WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto; in-test Great Vibes wrapper | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
+| Unicode cmap output (opt-in) | Synthetic BMP/supplementary mappings; Great Vibes; Roboto collection | Supported: `includeUnicodeCmap: true` writes formats 4 and 12 with remapped glyph IDs; off by default |
 | Colour / bitmap tables | Synthetic reader tests | Reading only; colour/bitmap-aware subsetting is not implemented. Outline subsets drop these tables; bitmap-only inputs are returned whole |
 | Unrecognised data | n/a | Throws `NotSupportedException` |
 
-What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`cvt `, `fpgm`, `prep`, `gasp`) and the outline tables (`glyf`/`loca` or `CFF `). `post` becomes version 3 (no glyph names, though CFF glyph names survive in the charset), and `cmap` is reduced to an empty table, since PDF Identity-H embedding does not use it. Layout and kerning tables (`GSUB`, `GPOS`, `GDEF`, `kern`) are dropped.
+What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`cvt `, `fpgm`, `prep`, `gasp`) and the outline tables (`glyf`/`loca` or `CFF `). `post` becomes version 3 (no glyph names, though CFF glyph names survive in the charset), and by default `cmap` is reduced to an empty table, since PDF Identity-H embedding does not use it. Layout and kerning tables (`GSUB`, `GPOS`, `GDEF`, `kern`) are dropped.
 
-**These subsets are for glyph-addressed embedding, not drop-in fonts for ordinary Unicode text rendering.** Map and shape text against the original font first, then remap glyph IDs for the subset. `FontSubsetter` itself resolves composite dependencies from the original bytes; `GlyphCollector` only collects the initial IDs from the parsed font.
+**Default subsets are for glyph-addressed embedding, not drop-in fonts for ordinary Unicode text rendering.** Map and shape text against the original font first, then remap glyph IDs for the subset. `FontSubsetter` itself resolves composite dependencies from the original bytes; `GlyphCollector` only collects the initial IDs from the parsed font.
+
+To retain Unicode lookup, use `FontSubsetter.Subset(fontBytes, usedGlyphIds, includeUnicodeCmap: true)` (also available for a `Typeface` or a collection member). All Unicode scalar mappings to retained glyphs, including aliases and composite dependencies, are renumbered from the source cmap. The output contains Windows format 4 (BMP) and format 12 (full Unicode, including BMP) subtables. Layout/kerning tables and Unicode variation sequences are still omitted, so this is not a full shaping-preserving font subset. Fonts returned whole keep their original cmap. See [cmap compatibility limits](docs/COMPATIBILITY.md#subset-unicode-cmap).
 
 ### Subset simple BMP text and create a PDF ToUnicode map
 

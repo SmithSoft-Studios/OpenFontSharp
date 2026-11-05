@@ -40,6 +40,17 @@ public static class FontSubsetter
     /// </exception>
     /// <exception cref="InvalidDataException">The WOFF2 input is malformed.</exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
+        => Subset(fontData, usedGlyphIds, includeUnicodeCmap: false);
+
+    /// <summary>Subsets a font, optionally retaining Unicode character mappings.</summary>
+    /// <param name="fontData">The original standalone font or WOFF1/WOFF2 bytes.</param>
+    /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against the original font.</param>
+    /// <param name="includeUnicodeCmap">Whether to map Unicode characters of retained glyphs to their new IDs using cmap formats 4 and 12.</param>
+    /// <returns>The font bytes and old-to-new ID map; an empty map means the font is unchanged.</returns>
+    /// <remarks>Unchanged fonts are returned whole, including their original cmap. Layout tables are not retained in subsets.</remarks>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap or WOFF2 input is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, the selected Unicode cmap format is unsupported, or its BMP mappings exceed the format 4 length limit.</exception>
+    public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(fontData);
         ArgumentNullException.ThrowIfNull(usedGlyphIds);
@@ -48,7 +59,7 @@ public static class FontSubsetter
         {
             case FontContainerFormat.TrueType:
             case FontContainerFormat.OpenTypeCff:
-                return SubsetSfnt(fontData, usedGlyphIds);
+                return SubsetSfnt(fontData, usedGlyphIds, includeUnicodeCmap);
 
             case FontContainerFormat.Woff:
                 byte[] sfnt;
@@ -60,7 +71,7 @@ public static class FontSubsetter
                 {
                     throw new NotSupportedException("The WOFF font could not be decoded, so it cannot be subset.", ex);
                 }
-                return SubsetSfnt(sfnt, usedGlyphIds);
+                return SubsetSfnt(sfnt, usedGlyphIds, includeUnicodeCmap);
 
             case FontContainerFormat.Collection:
                 throw new NotSupportedException(
@@ -68,7 +79,7 @@ public static class FontSubsetter
                     "FontSubsetter.Subset(fontData, fontIndex, usedGlyphIds).");
 
             case FontContainerFormat.Woff2:
-                return SubsetSfnt(WebFont.Woff2Converter.ToSfnt(fontData), usedGlyphIds);
+                return SubsetSfnt(WebFont.Woff2Converter.ToSfnt(fontData), usedGlyphIds, includeUnicodeCmap);
 
             default:
                 throw new NotSupportedException(
@@ -87,6 +98,17 @@ public static class FontSubsetter
     /// <exception cref="NotSupportedException">The data is not a collection, or the chosen font cannot be subset.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="fontIndex"/> is not in the collection.</exception>
     public static SubsetResult Subset(byte[] fontData, int fontIndex, ISet<ushort> usedGlyphIds)
+        => Subset(fontData, fontIndex, usedGlyphIds, includeUnicodeCmap: false);
+
+    /// <summary>Subsets a collection member, optionally retaining Unicode character mappings.</summary>
+    /// <param name="fontData">The complete collection bytes.</param>
+    /// <param name="fontIndex">The zero-based collection member index.</param>
+    /// <param name="usedGlyphIds">Glyph IDs from the selected original member.</param>
+    /// <param name="includeUnicodeCmap">Whether to write Unicode cmap formats 4 and 12 for retained glyphs.</param>
+    /// <returns>The standalone member subset and ID remapping; an empty map means the member is unchanged.</returns>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, or its Unicode cmap cannot be retained.</exception>
+    public static SubsetResult Subset(byte[] fontData, int fontIndex, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(fontData);
         ArgumentNullException.ThrowIfNull(usedGlyphIds);
@@ -104,7 +126,7 @@ public static class FontSubsetter
             throw new NotSupportedException("The font collection is malformed, so it cannot be subset.", ex);
         }
 
-        return Subset(member, usedGlyphIds);
+        return Subset(member, usedGlyphIds, includeUnicodeCmap);
     }
 
     /// <summary>
@@ -119,6 +141,16 @@ public static class FontSubsetter
     /// its format cannot be subset.
     /// </exception>
     public static SubsetResult Subset(Typeface typeface, ISet<ushort> usedGlyphIds)
+        => Subset(typeface, usedGlyphIds, includeUnicodeCmap: false);
+
+    /// <summary>Subsets a parsed font, optionally retaining Unicode character mappings.</summary>
+    /// <param name="typeface">The original parsed font with retained source bytes.</param>
+    /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against that font.</param>
+    /// <param name="includeUnicodeCmap">Whether to write Unicode cmap formats 4 and 12 for retained glyphs.</param>
+    /// <returns>The standalone subset and ID remapping; an empty map means the font is unchanged.</returns>
+    /// <exception cref="InvalidDataException">The selected source Unicode cmap or WOFF2 input is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input cannot be subset, or its Unicode cmap cannot be retained.</exception>
+    public static SubsetResult Subset(Typeface typeface, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         ArgumentNullException.ThrowIfNull(typeface);
 
@@ -131,10 +163,10 @@ public static class FontSubsetter
                 "Read the font from a seekable stream or pass the font bytes instead.");
         }
 
-        return Subset(original, usedGlyphIds);
+        return Subset(original, usedGlyphIds, includeUnicodeCmap);
     }
 
-    private static SubsetResult SubsetSfnt(byte[] fontData, ISet<ushort> usedGlyphIds)
+    private static SubsetResult SubsetSfnt(byte[] fontData, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         var tables = RawTtfTables.TryRead(fontData);
         if (tables is null)
@@ -146,11 +178,11 @@ public static class FontSubsetter
         }
 
         return tables.IsCff
-            ? SubsetCff(tables, usedGlyphIds)
-            : SubsetTrueType(tables, usedGlyphIds);
+            ? SubsetCff(tables, usedGlyphIds, includeUnicodeCmap)
+            : SubsetTrueType(tables, usedGlyphIds, includeUnicodeCmap);
     }
 
-    private static SubsetResult SubsetCff(RawTtfTables tables, ISet<ushort> usedGlyphIds)
+    private static SubsetResult SubsetCff(RawTtfTables tables, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         if (tables.Has("CFF2") || !tables.Has("CFF "))
             throw new NotSupportedException("Fonts with CFF2 outlines (variable OpenType/CFF) cannot be subset.");
@@ -174,10 +206,10 @@ public static class FontSubsetter
         writer.AddTable("head", BuildHead(tables, longLoca: false));
         writer.AddTable("CFF ", CffSubsetBuilder.Build(tables.TableBytes("CFF "), retained));
 
-        return Finish(writer, tables, retained, glyphIdMap);
+        return Finish(writer, tables, retained, glyphIdMap, includeUnicodeCmap);
     }
 
-    private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds)
+    private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)
     {
         var retained = GlyfSubsetBuilder.CollectGlyphs(tables, usedGlyphIds);
         if (retained.Count >= tables.NumGlyphs)
@@ -199,12 +231,13 @@ public static class FontSubsetter
 
         // Variation tables (fvar, gvar, HVAR, ...) are deliberately not copied: the
         // glyf outlines are the default instance, and that is what the subset holds.
-        return Finish(writer, tables, retained, glyphIdMap);
+        return Finish(writer, tables, retained, glyphIdMap, includeUnicodeCmap);
     }
 
     /// <summary>Adds the tables shared by both outline formats and builds the result.</summary>
     private static SubsetResult Finish(
-        TtfWriter writer, RawTtfTables tables, IReadOnlyList<ushort> retained, Dictionary<ushort, ushort> glyphIdMap)
+        TtfWriter writer, RawTtfTables tables, IReadOnlyList<ushort> retained, Dictionary<ushort, ushort> glyphIdMap,
+        bool includeUnicodeCmap)
     {
         writer.AddTable("hhea", BuildHhea(tables, retained.Count));
         writer.AddTable("maxp", BuildMaxp(tables, retained.Count));
@@ -220,7 +253,9 @@ public static class FontSubsetter
 
         // cmap is rebuilt against the new glyph ids. PDF Type0/Identity-H embedding does
         // not consult it, but a font carrying a stale cmap is invalid on its own terms.
-        writer.AddTable("cmap", BuildIdentityCmap(retained, glyphIdMap));
+        writer.AddTable("cmap", includeUnicodeCmap
+            ? UnicodeCmapBuilder.Build(tables.TableBytes("cmap"), glyphIdMap)
+            : BuildIdentityCmap(retained, glyphIdMap));
 
         return new SubsetResult(
             FontData: writer.Build(),
