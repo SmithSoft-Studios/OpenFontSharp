@@ -17,15 +17,50 @@ public class CffSubsetBuilderTests
     private const int OpFdSelect = 1237;
 
     [Fact]
-    public void SeacComposite_ThrowsNotSupported()
+    public void SeacComposite_RetainsStandardEncodingComponents()
     {
-        // "0 0 65 66 endchar": the deprecated seac form, which builds the glyph from
-        // the StandardEncoding glyphs 'A' and 'B' that the subset would not contain.
+        var cff = MinimalCff(
+            seacGlyph: [Int(0), Int(0), Int(65), Int(66), EndChar],
+            charsetSids: [0, 1, 34, 35]);
+
+        var subset = CffSubsetBuilder.Build(cff, [0, 1]);
+        var actual = InspectNameCff(subset);
+
+        actual.Sids.Should().Equal(0, 1, 34, 35);
+        actual.CharStrings[1].Should().Equal(Int(0), Int(0), Int(65), Int(66), EndChar);
+    }
+
+    [Fact]
+    public void SeacComposite_SubsetIncludesComponentsInGlyphIdMap()
+    {
+        var cff = MinimalCff(
+            seacGlyph: [Int(0), Int(0), Int(65), Int(66), EndChar],
+            charsetSids: [0, 1, 34, 35, 3]);
+        var font = MinimalCffOpenType(cff, glyphCount: 5);
+
+        var subset = FontSubsetter.Subset(font, new HashSet<ushort> { 1 });
+
+        subset.GlyphIdMap.Should().Equal(new Dictionary<ushort, ushort>
+        {
+            [0] = 0,
+            [1] = 1,
+            [2] = 2,
+            [3] = 3,
+        });
+        subset.RetainedGlyphCount.Should().Be(4);
+        var actual = InspectNameCff(SfntInspector.Parse(subset.FontData).Bytes("CFF "));
+        actual.Sids.Should().Equal(0, 1, 34, 35);
+        actual.CharStrings[1].Should().Equal(Int(0), Int(0), Int(65), Int(66), EndChar);
+    }
+
+    [Fact]
+    public void SeacComposite_MissingStandardEncodingGlyphCannotBeSubset()
+    {
         var cff = MinimalCff(seacGlyph: [Int(0), Int(0), Int(65), Int(66), EndChar]);
 
         var act = () => CffSubsetBuilder.Build(cff, [0, 1]);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*seac*");
+        act.Should().Throw<NotSupportedException>().WithMessage("*StandardEncoding charset*");
     }
 
     [Fact]
@@ -125,23 +160,51 @@ public class CffSubsetBuilderTests
     private static byte Int(int value) => (byte)(value + 139); // one-byte operand, -107..107
 
     /// <summary>A two-glyph name-keyed CFF table (ISOAdobe charset, empty Private DICT).</summary>
-    private static byte[] MinimalCff(byte[] seacGlyph, bool cidKeyed = false)
+    private static byte[] MinimalCff(byte[] seacGlyph, bool cidKeyed = false, ushort[]? charsetSids = null)
     {
         byte[] header = [1, 0, 4, 1];
         byte[] nameIndex = [0, 1, 1, 1, 2, (byte)'T'];
         byte[] ros = cidKeyed ? [Int(0), Int(0), Int(0), 12, 30] : [];
-        byte[] TopDict(int charStrings, int priv) => [.. ros, .. Long(charStrings), 17, Int(0), .. Long(priv), 18];
-        int topIndexLength = 5 + TopDict(0, 0).Length;
+        byte[][] charStringItems = charsetSids is null
+            ? [[EndChar], seacGlyph]
+            : Enumerable.Range(0, charsetSids.Length).Select(i => i == 1 ? seacGlyph : new[] { EndChar }).ToArray();
+        byte[] charStrings = WriteIndex(charStringItems);
+        byte[] charset = charsetSids is null
+            ? []
+            : [0, .. charsetSids.Skip(1).SelectMany(sid => new[] { (byte)(sid >> 8), (byte)sid })];
+        byte[] CharsetEntry(int offset) =>
+            charsetSids is null ? [] : [.. Long(offset), OpCharset];
+        byte[] TopDict(int charsetOffset, int charStringsOffset, int priv) =>
+        [
+            .. ros,
+            .. CharsetEntry(charsetOffset),
+            .. Long(charStringsOffset), OpCharStrings,
+            Int(0), .. Long(priv), OpPrivate,
+        ];
         byte[] emptyIndex = [0, 0];
 
-        int charStringsOffset = header.Length + nameIndex.Length + topIndexLength + emptyIndex.Length + emptyIndex.Length;
-        byte[] charStrings = [0, 2, 1, 1, 2, (byte)(2 + seacGlyph.Length), EndChar, .. seacGlyph];
+        int topIndexLength = IndexLength(TopDict(0, 0, 0).Length);
+        int charsetOffset = header.Length + nameIndex.Length + topIndexLength + emptyIndex.Length + emptyIndex.Length;
+        int charStringsOffset = charsetOffset + charset.Length;
         int privateOffset = charStringsOffset + charStrings.Length;
 
-        byte[] topDict = TopDict(charStringsOffset, privateOffset);
-        byte[] topIndex = [0, 1, 1, 1, (byte)(topDict.Length + 1), .. topDict];
+        byte[] topDict = TopDict(charsetOffset, charStringsOffset, privateOffset);
+        byte[] topIndex = WriteIndex([topDict]);
 
-        return [.. header, .. nameIndex, .. topIndex, .. emptyIndex, .. emptyIndex, .. charStrings];
+        return [.. header, .. nameIndex, .. topIndex, .. emptyIndex, .. emptyIndex, .. charset, .. charStrings];
+    }
+
+    private static (byte[][] CharStrings, ushort[] Sids) InspectNameCff(byte[] cff)
+    {
+        var nameIndex = ReadIndex(cff, cff[2]);
+        var topIndex = ReadIndex(cff, nameIndex.End);
+        var stringIndex = ReadIndex(cff, topIndex.End);
+        var globalSubrs = ReadIndex(cff, stringIndex.End);
+        var topDict = ReadDict(topIndex.Items[0]);
+        var charStrings = ReadIndex(cff, topDict[OpCharStrings][0]);
+        ushort[] sids = ReadCharset(cff, topDict[OpCharset][0], charStrings.Items.Length);
+        _ = globalSubrs;
+        return (charStrings.Items, sids);
     }
 
     private static byte[] MinimalCidCff(byte fdSelectFormat)

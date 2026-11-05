@@ -191,8 +191,8 @@ public static class FontSubsetter
         if (!cff2 && !tables.Has("CFF "))
             throw new NotSupportedException("The font has no supported CFF outline table.");
 
-        // CFF glyphs are self-contained (seac composites are rejected by the builder),
-        // so the retained set is .notdef plus the requested glyphs.
+        // Start with .notdef and the requested glyphs; CFF seac dependencies are added
+        // by the builder before the subset and glyph-id map are written.
         var needed = new SortedSet<ushort> { 0 };
         foreach (var glyphId in usedGlyphIds)
         {
@@ -204,16 +204,21 @@ public static class FontSubsetter
         if (!cff2 && retained.Count >= tables.NumGlyphs)
             return Unchanged(tables);
 
-        var glyphIdMap = retained.Count >= tables.NumGlyphs ? [] : BuildGlyphIdMap(retained);
-
-        var writer = new TtfWriter(TtfWriter.CffVersion);
-        writer.AddTable("head", BuildHead(tables, longLoca: false));
         byte[] cff = cff2
             ? Cff2DefaultInstanceConverter.ConvertToCff1(tables.TableBytes("CFF2"))
             : tables.TableBytes("CFF ");
-        writer.AddTable("CFF ", CffSubsetBuilder.Build(cff, retained));
+        var cffSubset = CffSubsetBuilder.Build(cff, retained, out var expanded);
+        if (!cff2 && expanded.Count >= tables.NumGlyphs)
+            return Unchanged(tables);
 
-        return Finish(writer, tables, retained, glyphIdMap, includeUnicodeCmap);
+        // A CFF2 font is always rewritten as static CFF1; keeping every glyph leaves the IDs unchanged.
+        var glyphIdMap = expanded.Count >= tables.NumGlyphs ? [] : BuildGlyphIdMap(expanded);
+
+        var writer = new TtfWriter(TtfWriter.CffVersion);
+        writer.AddTable("head", BuildHead(tables, longLoca: false));
+        writer.AddTable("CFF ", cffSubset);
+
+        return Finish(writer, tables, expanded, glyphIdMap, includeUnicodeCmap);
     }
 
     private static SubsetResult SubsetTrueType(RawTtfTables tables, ISet<ushort> usedGlyphIds, bool includeUnicodeCmap)

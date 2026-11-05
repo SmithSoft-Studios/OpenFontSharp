@@ -170,7 +170,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | TrueType variable font | Shantell Sans (variable) | Supported: subset to the default instance. `fvar`, `gvar`, `HVAR` and the other variation tables are dropped |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
 | CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
-| CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Throws `NotSupportedException` |
+| CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Supported: the base and accent glyphs are retained automatically (resolved through StandardEncoding and the charset); unresolvable components throw `NotSupportedException` |
 | OpenType with CFF2 outlines (variable `.otf`) | Synthetic CFF2 with `blend` / `vsindex` | Supported: reduced to the default instance and emitted as static CFF1 (`CFF `) in an `OTTO` font; `CFF2`, `fvar`, `avar`, `HVAR`, `MVAR` and `STAT` are dropped |
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |

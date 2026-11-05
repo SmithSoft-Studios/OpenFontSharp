@@ -14,9 +14,8 @@ namespace OpenFontSharp.Subsetting;
 /// <para>
 /// Not supported, and reported with <see cref="NotSupportedException"/>: fonts with
 /// more than one Top DICT, Type 1 charstrings,
-/// synthetic fonts, the predefined Expert charsets, and glyphs composed with the
-/// deprecated <c>seac</c> form of <c>endchar</c>, whose components the subset would
-/// otherwise silently lose.
+/// synthetic fonts, the predefined Expert charsets, and CID-keyed glyphs composed with
+/// the deprecated <c>seac</c> form of <c>endchar</c>.
 /// </para>
 /// </remarks>
 public static class CffSubsetBuilder
@@ -41,13 +40,19 @@ public static class CffSubsetBuilder
     /// </summary>
     /// <exception cref="NotSupportedException">The CFF data uses a feature this subsetter does not handle.</exception>
     public static byte[] Build(byte[] cff, IReadOnlyList<ushort> retainedGlyphs)
+        => Build(cff, retainedGlyphs, out _);
+
+    internal static byte[] Build(
+        byte[] cff,
+        IReadOnlyList<ushort> retainedGlyphs,
+        out IReadOnlyList<ushort> expandedGlyphs)
     {
         ArgumentNullException.ThrowIfNull(cff);
         ArgumentNullException.ThrowIfNull(retainedGlyphs);
 
         try
         {
-            return BuildCore(cff, retainedGlyphs);
+            return BuildCore(cff, retainedGlyphs, out expandedGlyphs);
         }
         catch (Exception ex) when (ex is IndexOutOfRangeException or ArgumentException or InvalidDataException)
         {
@@ -55,7 +60,10 @@ public static class CffSubsetBuilder
         }
     }
 
-    private static byte[] BuildCore(byte[] cff, IReadOnlyList<ushort> retainedGlyphs)
+    private static byte[] BuildCore(
+        byte[] cff,
+        IReadOnlyList<ushort> retainedGlyphs,
+        out IReadOnlyList<ushort> expandedGlyphs)
     {
         if (cff.Length < 4 || cff[0] != 1)
             throw new NotSupportedException($"Only CFF version 1 can be subset (found major version {(cff.Length > 0 ? cff[0] : 0)}).");
@@ -88,7 +96,10 @@ public static class CffSubsetBuilder
 
         var sids = ReadCharset(cff, topDict.Has(OpCharset) ? topDict.Int(OpCharset, 0) : 0, glyphCount);
         if (cidKeyed)
+        {
+            expandedGlyphs = retainedGlyphs;
             return BuildCidKeyed(cff, topDict, nameIndex, stringIndex, globalSubrs, charStrings, sids, retainedGlyphs);
+        }
 
         int privateSize = topDict.Int(OpPrivate, 0);
         int privateOffset = topDict.Int(OpPrivate, 1);
@@ -98,16 +109,8 @@ public static class CffSubsetBuilder
             ? Index.Read(cff, privateOffset + privateDict.Int(OpSubrs, 0))
             : null;
 
-        var scanner = new CharStringScanner(cff, globalSubrs, localSubrs);
-        foreach (var glyph in retainedGlyphs)
-        {
-            if (scanner.UsesSeac(charStrings.Item(cff, glyph)))
-            {
-                throw new NotSupportedException(
-                    $"Glyph {glyph} is built with the deprecated 'seac' accent operator, whose " +
-                    "components this subsetter does not follow.");
-            }
-        }
+        var glyphs = ExpandSeacComponents(cff, charStrings, sids, globalSubrs, localSubrs, retainedGlyphs);
+        expandedGlyphs = glyphs;
 
         // Pieces copied verbatim.
         var nameBytes = cff.AsSpan(nameIndex.Start, nameIndex.End - nameIndex.Start).ToArray();
@@ -118,8 +121,8 @@ public static class CffSubsetBuilder
             : [];
 
         // Rebuilt pieces.
-        var charsetBytes = BuildCharset(sids, retainedGlyphs);
-        var charStringsBytes = Index.Write(retainedGlyphs.Select(g => charStrings.Item(cff, g).ToArray()).ToList());
+        var charsetBytes = BuildCharset(sids, glyphs);
+        var charStringsBytes = Index.Write(glyphs.Select(g => charStrings.Item(cff, g).ToArray()).ToList());
 
         // The Private DICT points at its local subroutines, placed right after it.
         var privateEntries = privateDict.Without(OpSubrs);
@@ -318,6 +321,97 @@ public static class CffSubsetBuilder
             output.Write(source.LocalSubrBytes);
         }
         return output.ToArray();
+    }
+
+    private static IReadOnlyList<ushort> ExpandSeacComponents(
+        byte[] cff,
+        Index charStrings,
+        ushort[] sids,
+        Index globalSubrs,
+        Index? localSubrs,
+        IReadOnlyList<ushort> retainedGlyphs)
+    {
+        Dictionary<ushort, ushort>? sidToGlyph = null;
+        var glyphs = new SortedSet<ushort>(retainedGlyphs);
+        var pending = new Queue<ushort>(retainedGlyphs);
+        var scanner = new CharStringScanner(cff, globalSubrs, localSubrs);
+        while (pending.TryDequeue(out ushort glyph))
+        {
+            var seac = scanner.FindSeac(charStrings.Item(cff, glyph));
+            if (seac is not { } components)
+                continue;
+
+            AddComponent(components.BaseCode, "base");
+            AddComponent(components.AccentCode, "accent");
+
+            void AddComponent(int code, string component)
+            {
+                int sid = StandardEncodingSid(code);
+                if (sid < 0)
+                    throw new NotSupportedException(
+                        $"Glyph {glyph} uses a seac {component} code {code} that cannot be resolved through the StandardEncoding charset.");
+                sidToGlyph ??= BuildSidToGlyphMap(sids);
+                if (!sidToGlyph.TryGetValue((ushort)sid, out ushort componentGlyph))
+                    throw new NotSupportedException(
+                        $"Glyph {glyph} uses a seac {component} code {code} that cannot be resolved through the StandardEncoding charset.");
+                if (glyphs.Add(componentGlyph))
+                    pending.Enqueue(componentGlyph);
+            }
+        }
+
+        return glyphs.ToArray();
+    }
+
+    private static Dictionary<ushort, ushort> BuildSidToGlyphMap(ushort[] sids)
+    {
+        var sidToGlyph = new Dictionary<ushort, ushort>();
+        for (int glyph = 0; glyph < sids.Length; glyph++)
+        {
+            if (!sidToGlyph.TryAdd(sids[glyph], (ushort)glyph))
+                throw new InvalidDataException($"The CFF charset contains duplicate SID {sids[glyph]}.");
+        }
+        return sidToGlyph;
+    }
+
+    private static int StandardEncodingSid(int code)
+    {
+        if (code is < 0 or >= 256)
+            return -1;
+        return StandardEncodingSids[code];
+    }
+
+    private static readonly int[] StandardEncodingSids = CreateStandardEncodingSids();
+
+    private static int[] CreateStandardEncodingSids()
+    {
+        // StandardEncoding code to CFF standard-string SID.
+        var sids = new int[256];
+        Array.Fill(sids, -1);
+        for (int code = 32; code <= 126; code++)
+            sids[code] = code - 31;
+
+        SetRange(161, 166, 15);
+        SetRange(177, 181, 4);
+        SetRange(182, 185, 8);
+        sids[191] = 193;
+        SetRange(193, 194, 8);
+        sids[202] = 202;
+        sids[203] = 203;
+        SetRange(205, 204, 4);
+        sids[230] = 208;
+        sids[232] = 209;
+        SetRange(236, 210, 4);
+        sids[241] = 214;
+        sids[245] = 215;
+        sids[248] = 218;
+        sids[249] = 219;
+        return sids;
+
+        void SetRange(int firstCode, int firstSid, int count)
+        {
+            for (int i = 0; i < count; i++)
+                sids[firstCode + i] = firstSid + i;
+        }
     }
 
     private static int ReadFdSelectFormat(byte[] cff, int offset)
@@ -655,12 +749,16 @@ public static class CffSubsetBuilder
         private bool _ended;
 
         public bool UsesSeac(ReadOnlySpan<byte> charString)
+            => FindSeac(charString) is not null;
+
+        public (int BaseCode, int AccentCode)? FindSeac(ReadOnlySpan<byte> charString)
         {
             _stack.Clear();
             _stems = 0;
             _seac = _ended = false;
+            _baseCode = _accentCode = 0;
             Run(charString, 0);
-            return _seac;
+            return _seac ? (_baseCode, _accentCode) : null;
         }
 
         private void Run(ReadOnlySpan<byte> code, int depth)
@@ -734,8 +832,12 @@ public static class CffSubsetBuilder
                     case 14: // endchar
                         // endchar takes an optional width, then optionally four seac
                         // arguments (adx ady bchar achar).
-                        if (_stack.Count >= 4)
+                        if (_stack.Count is 4 or 5)
+                        {
                             _seac = true;
+                            _baseCode = _stack[^2];
+                            _accentCode = _stack[^1];
+                        }
                         _ended = true;
                         return;
 
@@ -765,5 +867,8 @@ public static class CffSubsetBuilder
 
             Run(subrs.Item(cff, number + bias), depth + 1);
         }
+
+        private int _baseCode;
+        private int _accentCode;
     }
 }
