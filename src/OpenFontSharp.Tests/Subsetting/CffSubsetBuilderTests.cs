@@ -283,7 +283,7 @@ public class CffSubsetBuilderTests
         {
             int first = ReadU16(cff, cursor);
             int fd = cff[cursor + 2];
-            int end = range + 1 < rangeCount ? ReadU16(cff, cursor + 3) : ReadU16(cff, cursor + 3);
+            int end = ReadU16(cff, cursor + 3);
             for (int glyph = first; glyph < Math.Min(end, glyphCount); glyph++)
                 selectors[glyph] = fd;
             cursor += 3;

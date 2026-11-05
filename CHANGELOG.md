@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- CID-keyed CFF1 subsetting retains the CIDs, remaps FDSelect formats 0/3, and keeps only the Font DICTs used by retained glyphs; subroutines are kept whole.
+
 ## [1.2.3]
 
 ### Fixed

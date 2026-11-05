@@ -74,6 +74,8 @@ public static class CffSubsetBuilder
         bool cidKeyed = topDict.Has(OpRos) || topDict.Has(OpFdArray) || topDict.Has(OpFdSelect);
         if (cidKeyed && (!topDict.Has(OpRos) || !topDict.Has(OpFdArray)))
             throw new InvalidDataException("A CID-keyed CFF Top DICT must have ROS and FDArray entries.");
+        if (cidKeyed && (!topDict.Has(OpCharset) || topDict.Int(OpCharset, 0) <= 2))
+            throw new InvalidDataException("A CID-keyed CFF font must have a custom charset.");
         if (topDict.Has(OpSyntheticBase))
             throw new NotSupportedException("Synthetic CFF fonts cannot be subset.");
         if (topDict.Has(OpCharstringType) && topDict.Int(OpCharstringType, 0) != 2)
@@ -362,7 +364,7 @@ public static class CffSubsetBuilder
         {
             int start = ReadU16(cff, cursor);
             int fd = cff[cursor + 2];
-            int end = range + 1 < rangeCount ? ReadU16(cff, cursor + 3) : ReadU16(cff, cursor + 3);
+            int end = ReadU16(cff, cursor + 3);
             if (end <= start || fd >= fdCount)
                 throw new InvalidDataException("The FDSelect format 3 ranges are invalid.");
             for (int glyph = start; glyph < end && glyph < glyphCount; glyph++)
@@ -413,7 +415,7 @@ public static class CffSubsetBuilder
         output.WriteByte((byte)value);
     }
 
-    /// <summary>Reads the charset into a SID per glyph id.</summary>
+    /// <summary>Reads the charset into a SID or CID per glyph id.</summary>
     private static ushort[] ReadCharset(byte[] cff, int offset, int glyphCount)
     {
         var sids = new ushort[glyphCount];
@@ -461,7 +463,7 @@ public static class CffSubsetBuilder
         return sids;
     }
 
-    /// <summary>Writes a format 0 charset naming each retained glyph after .notdef.</summary>
+    /// <summary>Writes a format 0 charset with each retained glyph's original SID or CID.</summary>
     private static byte[] BuildCharset(ushort[] sids, IReadOnlyList<ushort> retainedGlyphs)
     {
         var charset = new byte[1 + ((retainedGlyphs.Count - 1) * 2)];

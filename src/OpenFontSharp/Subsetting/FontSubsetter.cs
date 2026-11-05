@@ -13,7 +13,7 @@ namespace OpenFontSharp.Subsetting;
 /// </para>
 /// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
-/// their default instance), name-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0
+/// their default instance), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0
 /// wrapping either, and one font of a collection via
 /// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
@@ -35,8 +35,8 @@ public static class FontSubsetter
     /// <returns>The font bytes and old-to-new ID map; an empty map means IDs are unchanged.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">
-    /// The font's format cannot be subset (collection without an index, WOFF2, CFF2,
-    /// CID-keyed CFF, or unrecognised data).
+    /// The font's format cannot be subset (collection without an index, WOFF2, CFF2
+    /// or unrecognised data).
     /// </exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
     {
