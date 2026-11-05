@@ -21,6 +21,82 @@ public class RealFontGposShapingTests
         yield return new object[] { "Shantell Sans", new[] { "TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf" } };
     }
 
+    public static IEnumerable<object[]> HarfBuzzPairReferences()
+    {
+        yield return new object[]
+        {
+            "Roboto", new[] { "TTF", "Roboto", "Roboto-Regular.ttf" },
+            new ushort[] { 37, 58 }, new int[] { 1249, 1303 }
+        };
+        yield return new object[]
+        {
+            "Shantell Sans", new[] { "TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf" },
+            new ushort[] { 4, 164 }, new int[] { 674, 675 }
+        };
+        yield return new object[]
+        {
+            "Lato subset", new[] { "TTF", "Lato", "OpenFontSharp-Lato-Positioning.ttf" },
+            new ushort[] { 1, 3 }, new int[] { 1246, 1354 }
+        };
+    }
+
+    public static IEnumerable<object[]> HarfBuzzMarkReferences()
+    {
+        yield return new object[]
+        {
+            "Shantell Sans", new[] { "TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf" },
+            new ushort[] { 4, 630 }, new int[] { 726, 0 }, new int[] { 0, -358 }
+        };
+        yield return new object[]
+        {
+            "Lato subset", new[] { "TTF", "Lato", "OpenFontSharp-Lato-Positioning.ttf" },
+            new ushort[] { 1, 6 }, new int[] { 1354, 0 }, new int[] { 0, -280 }
+        };
+    }
+
+    /// <summary>Expected glyph positions were generated with HarfBuzz via uharfbuzz 0.57.0.</summary>
+    [Theory]
+    [MemberData(nameof(HarfBuzzPairReferences))]
+    public void GposPairMatchesHarfBuzzReference(string name, string[] path, ushort[] glyphIds, int[] advances)
+    {
+        var result = BasicLatinShaper.Shape(
+            Load(path), "AV", new ShapingOptions { EnableGposPositioning = true });
+
+        result.GlyphIds.Should().Equal(glyphIds, name);
+        result.Advances.Should().Equal(advances, name);
+        result.XOffsets.Should().Equal(0, 0);
+        result.YOffsets.Should().Equal(0, 0);
+    }
+
+    /// <summary>Expected Shantell Sans PairPos format 2 values were generated with GSUB disabled in HarfBuzz 0.57.0.</summary>
+    [Fact]
+    public void GposPairPositionFormat2MatchesHarfBuzzReference()
+    {
+        var result = BasicLatinShaper.Shape(
+            Load("TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf"),
+            "\"\"", new ShapingOptions { EnableGposPositioning = true });
+
+        result.GlyphIds.Should().Equal(728, 728);
+        result.Advances.Should().Equal(428, 445);
+        result.XOffsets.Should().Equal(0, 0);
+        result.YOffsets.Should().Equal(0, 0);
+    }
+
+    /// <summary>Expected glyph positions were generated with HarfBuzz via uharfbuzz 0.57.0.</summary>
+    [Theory]
+    [MemberData(nameof(HarfBuzzMarkReferences))]
+    public void MarkBaseMatchesHarfBuzzReference(
+        string name, string[] path, ushort[] glyphIds, int[] advances, int[] xOffsets)
+    {
+        var result = BasicLatinShaper.Shape(
+            Load(path), "A\u0327", new ShapingOptions { EnableGposPositioning = true });
+
+        result.GlyphIds.Should().Equal(glyphIds, name);
+        result.Advances.Should().Equal(advances, name);
+        result.XOffsets.Should().Equal(xOffsets, name);
+        result.YOffsets.Should().Equal(0, 0);
+    }
+
     [Theory]
     [MemberData(nameof(Fonts))]
     public void Gpos_KernsAVAndToOnRealFonts(string name, string[] path)
@@ -46,6 +122,6 @@ public class RealFontGposShapingTests
         var defaultResult = BasicLatinShaper.Shape(font, "AV");
         var explicitOff = BasicLatinShaper.Shape(font, "AV", new ShapingOptions());
 
-        defaultResult.Advances.Should().Equal(explicitOff.Advances);
+        defaultResult.Advances.Should().Equal(explicitOff.Advances, name);
     }
 }

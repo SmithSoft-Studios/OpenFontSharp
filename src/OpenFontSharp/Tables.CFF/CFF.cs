@@ -654,6 +654,7 @@ namespace OpenFontSharp.Tables.CFF
             //---------------------- 
             ReadFDSelect();
             ReadFDArray();
+            ValidateFDSelect();
 
 
             ReadPrivateDict();
@@ -1248,6 +1249,33 @@ namespace OpenFontSharp.Tables.CFF
             {
                 default:
                     throw new OpenFontNotSupportedException();
+                case 0:
+                    {
+                        int glyphCount = ReadCharStringCount();
+                        if (glyphCount == 0)
+                            throw new InvalidDataException("A CID-keyed CFF font must contain glyphs.");
+
+                        byte[] selectors = _reader.ReadBytes(glyphCount);
+                        if (selectors.Length != glyphCount)
+                            throw new InvalidDataException("The CFF FDSelect format 0 array is truncated.");
+
+                        var ranges = new List<FDRange3>();
+                        for (int glyph = 0; glyph < glyphCount;)
+                        {
+                            byte fd = selectors[glyph];
+                            ranges.Add(new FDRange3((ushort)glyph, fd));
+                            do
+                            {
+                                glyph++;
+                            }
+                            while (glyph < glyphCount && selectors[glyph] == fd);
+                        }
+                        ranges.Add(new FDRange3((ushort)glyphCount, 0));
+
+                        _cidFontInfo.fdSelectFormat = 0;
+                        _cidFontInfo.fdRanges = ranges.ToArray();
+                    }
+                    break;
                 case 3:
                     {
                         ushort nRanges = _reader.ReadUInt16();
@@ -1269,6 +1297,45 @@ namespace OpenFontSharp.Tables.CFF
 
                     }
                     break;
+            }
+        }
+
+        int ReadCharStringCount()
+        {
+            long originalPosition = _reader.BaseStream.Position;
+            try
+            {
+                long indexPosition = checked(_cffStartAt + _charStringsOffset);
+                if (_charStringsOffset <= 0 || indexPosition < 0 ||
+                    indexPosition > _reader.BaseStream.Length - sizeof(ushort))
+                    throw new InvalidDataException("The CFF CharStrings INDEX offset is invalid.");
+
+                _reader.BaseStream.Position = indexPosition;
+                return _reader.ReadUInt16();
+            }
+            catch (EndOfStreamException ex)
+            {
+                throw new InvalidDataException("The CFF CharStrings INDEX is truncated.", ex);
+            }
+            finally
+            {
+                _reader.BaseStream.Position = originalPosition;
+            }
+        }
+
+        void ValidateFDSelect()
+        {
+            if (_cidFontInfo.fdRanges == null)
+                return;
+
+            var fontDicts = _currentCff1Font._cidFontDict;
+            if (fontDicts == null || fontDicts.Count == 0)
+                throw new InvalidDataException("A CID-keyed CFF font requires a non-empty Font DICT INDEX.");
+
+            foreach (var range in _cidFontInfo.fdRanges.AsSpan(0, _cidFontInfo.fdRanges.Length - 1))
+            {
+                if (range.fd >= fontDicts.Count)
+                    throw new InvalidDataException("The CFF FDSelect references a missing Font DICT.");
             }
         }
 

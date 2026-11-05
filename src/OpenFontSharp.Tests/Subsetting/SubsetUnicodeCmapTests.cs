@@ -94,6 +94,33 @@ public class SubsetUnicodeCmapTests
     }
 
     [Fact]
+    public void RealRobotoSubset_MapsEveryRetainedCodePointToItsOriginalOutline()
+    {
+        byte[] sourceBytes = FontFiles.Bytes(FontFiles.RobotoRegular);
+        var source = FontFiles.Load(sourceBytes);
+        var result = FontSubsetter.Subset(
+            sourceBytes, FontFiles.GlyphsFor(source, "Hello, world! 0123456789"),
+            includeUnicodeCmap: true);
+        var subset = FontFiles.Load(result.FontData);
+
+        var codePoints = new List<uint>();
+        source.CollectUnicode(codePoints);
+        int checkedMappings = 0;
+        foreach (uint codePoint in codePoints.Distinct())
+        {
+            ushort oldGlyph = source.GetGlyphIndex((int)codePoint);
+            if (oldGlyph == 0 || !result.GlyphIdMap.TryGetValue(oldGlyph, out ushort newGlyph))
+                continue;
+
+            subset.GetGlyphIndex((int)codePoint).Should().Be(newGlyph, $"U+{codePoint:X} must map to the retained glyph");
+            checkedMappings++;
+        }
+
+        checkedMappings.Should().BeGreaterThan(0);
+        SubsetVerifier.VerifyFaithful(source, result);
+    }
+
+    [Fact]
     public void Format4Source_AppliesGlyphArrayDeltaAndPreservesMissingEntries()
     {
         var cmap = new byte[52];

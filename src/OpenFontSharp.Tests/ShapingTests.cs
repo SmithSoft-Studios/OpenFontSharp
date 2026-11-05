@@ -47,6 +47,15 @@ public class ShapingTests
     }
 
     [Fact]
+    public void BasicLatinShaper_AppliesRobotoFfiLigature()
+    {
+        var result = BasicLatinShaper.Shape(LoadRoboto(), "office");
+
+        result.GlyphIds.Should().Equal(83, 446, 71, 73);
+        result.Advances.Should().Equal(1168, 1748, 1072, 1085);
+    }
+
+    [Fact]
     public void ScriptDetector_LatinText_DoesNotRequireComplexShaping()
     {
         ScriptDetector.RequiresComplexShaping("Hello World").Should().BeFalse();

@@ -87,6 +87,8 @@ Regression tests use the bundled Roboto Regular font (Apache-2.0) at 64 truncati
 
 Transformed composite graphs are checked for cycles and limited to 16 nesting levels, 65,535 expanded points/contours per glyph, and 4,194,304 expanded points across the font.
 
+TrueType composite component transforms preserve fractional design-unit point coordinates; bounds floor minima and ceil maxima to enclose transformed points. The real Roboto WOFF2 check compares every converted glyph's coordinates, on-curve flags, contour endpoints and metrics against a fontTools 4.68 reference.
+
 Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart, and a Brotli-compressed WOFF2 wrapper built in the test from the existing Great Vibes OTF. This is not a claim of exhaustive real-world font coverage.
 
 ## Colour and bitmap tables
@@ -117,7 +119,7 @@ Instantiation applies `gvar` deltas, interpolates untouched simple-glyph points 
 
 Malformed variation data throws `InvalidDataException`. The instancer rejects overlapping tables, caps input, aggregate table bytes and rebuilt output at 128 MiB, and limits expanded glyph points across the font to 4,194,304. Tuple processing has a shared work budget; cyclic or excessively nested composites are rejected. `avar` versions other than 1.0 are unsupported.
 
-Synthetic tests verify known coordinates and advances, IUP, shared and intermediate tuples, composite offsets and inherited metrics, HVAR mappings, cvar and malformed input. Tests also re-read non-default static instances of the existing Shantell Sans fixture, with and without glyph removal. External renderer interoperability and exhaustive real-world variable-font coverage are untested; hinting programs are copied, not executed or rewritten.
+Synthetic tests verify known coordinates and advances, IUP, shared and intermediate tuples, composite offsets and inherited metrics, HVAR mappings, cvar and malformed input. Tests also re-read non-default static instances of the existing Shantell Sans fixture, with and without glyph removal. `RealVariableFontReferenceTests` compares glyph count, A/V outlines and advances against fontTools 4.68 at three axis coordinates; the largest point difference is 1 font unit for the mixed-axis instance and 0 for the other two. A second real variable font with a different axis layout and exhaustive renderer interoperability remain untested; hinting programs are copied, not executed or rewritten.
 
 ## Other existing limitations
 
@@ -129,3 +131,13 @@ Synthetic tests verify known coordinates and advances, IUP, shared and intermedi
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 
 See the [README examples](../README.md) for choosing an appropriate workflow. These remaining limitations are not changed by WOFF2 conversion support.
+
+## Test evidence and remaining fixture gaps
+
+The [test coverage matrix](TEST-COVERAGE.md) records the current test methods and distinguishes
+synthetic coverage from real-font and independent-reference evidence. It includes a real
+Source Han CID-keyed CFF subset, HarfBuzz positioning expectations, and a real-font Unicode
+cmap subset test. The repository has no real `seac`, CFF2 variable, COLR/CPAL, or EBLC/CBLC
+fixture; those paths are covered with synthetic data only. The real variable-font fixture set
+does not contain a second font with a different axis layout. CI runs the suite in both Debug
+and Release.

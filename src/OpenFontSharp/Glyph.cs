@@ -129,12 +129,18 @@ namespace OpenFontSharp
             //http://www.technologicalutopia.com/sourcecode/xnageometry/vector2.cs.htm
 
             //change data on current glyph
-            float new_xmin = 0;
-            float new_ymin = 0;
-            float new_xmax = 0;
-            float new_ymax = 0;
+            float new_xmin = float.PositiveInfinity;
+            float new_ymin = float.PositiveInfinity;
+            float new_xmax = float.NegativeInfinity;
+            float new_ymax = float.NegativeInfinity;
 
             GlyphPointF[] glyphPoints = glyph.GlyphPoints!;
+            if (glyphPoints.Length == 0)
+            {
+                glyph.Bounds = new Bounds(0, 0, 0, 0);
+                return;
+            }
+
             for (int i = 0; i < glyphPoints.Length; ++i)
             {
                 GlyphPointF p = glyphPoints[i];
@@ -142,15 +148,11 @@ namespace OpenFontSharp
                 float y = p.P.Y;
 
                 float newX, newY;
-                //please note that this is transform normal***
                 glyphPoints[i] = new GlyphPointF(
-                   newX = (float)Math.Round((x * m00) + (y * m10)),
-                   newY = (float)Math.Round((x * m01) + (y * m11)),
+                   newX = (x * m00) + (y * m10),
+                   newY = (x * m01) + (y * m11),
                    p.onCurve);
 
-                //short newX = xs[i] = (short)Math.Round((x * m00) + (y * m10));
-                //short newY = ys[i] = (short)Math.Round((x * m01) + (y * m11));
-                //------
                 if (newX < new_xmin)
                 {
                     new_xmin = newX;
@@ -169,10 +171,9 @@ namespace OpenFontSharp
                     new_ymax = newY;
                 }
             }
-            //TODO: review here
             glyph.Bounds = new Bounds(
-               (short)new_xmin, (short)new_ymin,
-               (short)new_xmax, (short)new_ymax);
+               (short)Math.Floor(new_xmin), (short)Math.Floor(new_ymin),
+               (short)Math.Ceiling(new_xmax), (short)Math.Ceiling(new_ymax));
         }
 
         /// <summary>
