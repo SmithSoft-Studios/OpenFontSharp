@@ -155,7 +155,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | TrueType (`.ttf`) | Roboto, Shantell Sans (static) | Supported |
 | TrueType variable font | Shantell Sans (variable) | Supported: subset to the default instance. `fvar`, `gvar`, `HVAR` and the other variation tables are dropped |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
-| CID-keyed CFF | hand-built CFF table | Throws `NotSupportedException` |
+| CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
 | CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Throws `NotSupportedException` |
 | OpenType with CFF2 outlines (variable `.otf`) | Great Vibes with the table relabelled `CFF2` | Throws `NotSupportedException` |
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |

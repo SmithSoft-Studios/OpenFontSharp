@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
+- CID-keyed CFF1 subsetting retains the CIDs, remaps FDSelect formats 0/3, and keeps only the Font DICTs used by retained glyphs; subroutines are kept whole.
 - `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.
 - Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
