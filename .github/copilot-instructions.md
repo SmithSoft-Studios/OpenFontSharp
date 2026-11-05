@@ -12,6 +12,13 @@ These rules apply to every issue and pull request. They exist because earlier ag
 6. **Test interactions.** If your change touches code another recent change also touches (subsetting, shaping, the reader), add a test that uses both features together.
 7. **Review your own diff.** Before requesting review, read the full diff once as a reviewer would and fix what you find. Remove debug-only throws and stubs that can be reached in Release, or turn them into documented exceptions.
 
+## Every change needs a test
+
+- A new feature needs tests for its normal behaviour, its limits and its failure paths, in the same PR.
+- A bug fix needs a regression test that fails without the fix.
+- A behaviour change needs the old tests updated and a test that pins the new behaviour. Never delete or weaken an assertion to make a build pass; explain it in the PR.
+- If something cannot be tested (no suitable font, no independent tool), say so in the PR description instead of leaving it out silently.
+
 ## What the PR description must say
 
 - What was verified, how, and against what (tests, real fonts, independent tools).
