@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.2.3]
+
 ### Fixed
 - `AdobeGlyphList` lazy initialisation is now thread-safe. Concurrent first use could read half-built dictionaries or throw on a duplicate key.
 
