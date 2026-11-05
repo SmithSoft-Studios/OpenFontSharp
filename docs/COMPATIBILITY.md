@@ -79,6 +79,8 @@ Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and re
 
 Transformed composite graphs are checked for cycles and limited to 16 nesting levels, 65,535 expanded points/contours per glyph, and 4,194,304 expanded points across the font.
 
+TrueType composite component transforms preserve fractional design-unit point coordinates; bounds floor minima and ceil maxima to enclose transformed points. The real Roboto WOFF2 check compares every converted glyph's coordinates, on-curve flags, contour endpoints and metrics against a fontTools 4.68 reference.
+
 Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart, and a Brotli-compressed WOFF2 wrapper built in the test from the existing Great Vibes OTF. This is not a claim of exhaustive real-world font coverage.
 
 ## Colour and bitmap tables

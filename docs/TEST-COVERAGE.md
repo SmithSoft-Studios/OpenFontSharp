@@ -19,9 +19,10 @@ Independent references are called out separately from the library's own reader.
 
 The Roboto WOFF2 fixture was encoded from the committed TTF by fontTools 4.68. The
 converter test compares untransformed sfnt tables with the source using the independent
-test-only `SfntInspector`; it also compares every glyph's points, advances and cmap through
-the public reader. Transformed `glyf`, `loca` and `hmtx` bytes are not expected to be
-byte-identical encodings.
+test-only `SfntInspector` and compares every glyph's points, on-curve flags, contour
+endpoints, advances and bearings with a compact full-font FontTools reference. It also
+compares cmap mappings through the public reader. Transformed `glyf`, `loca` and `hmtx`
+bytes are not expected to be byte-identical encodings.
 
 ## Subsetting
 
