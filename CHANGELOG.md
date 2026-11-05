@@ -4,6 +4,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+## [1.4.0]
+
 ### Added
 - `Typeface.ColorTableVersion` reports the loaded COLR version, or null when absent or trimmed.
 - A per-feature [test coverage matrix](docs/TEST-COVERAGE.md), real CID-keyed CFF, GPOS and variable-instance references, Unicode-cmap checks on a real font, and Debug test execution in CI.
@@ -13,6 +15,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Opt-in `includeUnicodeCmap` overloads for `FontSubsetter.Subset` write format 4 (BMP) and format 12 (full Unicode) cmaps mapping retained characters to renumbered glyph IDs. Existing overloads and default output are unchanged; layout tables and variation sequences remain omitted.
 
 ### Fixed
+- CFF1 reading now accepts CID-keyed FDSelect format 0, converting its per-glyph Font DICT selectors to ranges and rejecting invalid Font DICT references as `InvalidDataException`.
+- GPOS PairPos lookups with multiple subtables now stop at the first matching subtable for each glyph pair, instead of accumulating duplicate positioning adjustments (verified against HarfBuzz on Shantell Sans).
+- TrueType composite transforms preserve fractional design-unit point coordinates and compute enclosing bounds instead of rounding transformed points to integer units.
 - Fonts with COLR v1 now load supported outlines and metrics instead of failing. Compatible v0 layers remain available; v1 paint graphs are ignored. Reduced subsets continue to drop COLR/CPAL without flattening colour glyphs. Includes a SIL OFL 1.1 Noto Emoji fixture and malformed-header regression tests.
 - `MacPostFormat1` now publishes its standard glyph-name cache only after synchronized initialization; Debug-only `Typeface` IDs increment atomically. Truncated byte-order reads and missing required tables produce `InvalidDataException`; format 12 cmap counts, TTC member counts, and SVG document lengths are validated before allocation, with SVG documents capped at 64 MiB.
 - Truncated Type 2 charstring operands and hint masks are rejected during CFF `seac` scanning. Unsupported GSUB paths now throw `OpenFontNotSupportedException` instead of `NotImplementedException`.
@@ -29,9 +34,6 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
 ### Fixed
-- CFF1 reading now accepts CID-keyed FDSelect format 0, converting its per-glyph Font DICT selectors to ranges and rejecting invalid Font DICT references as `InvalidDataException`.
-- GPOS PairPos lookups with multiple subtables now stop at the first matching subtable for each glyph pair, instead of accumulating duplicate positioning adjustments (verified against HarfBuzz on Shantell Sans).
-- TrueType composite transforms preserve fractional design-unit point coordinates and compute enclosing bounds instead of rounding transformed points to integer units.
 - CBLC/CBDT and EBLC/EBDT bitmap lookup is keyed by glyph ID. The previous reader returned the bitmap of a different glyph (checked with Noto Color Emoji 2.051: U+1F600 returned the sweat-smile emoji and U+1F355 a bowl of rice); `Typeface.GlyphCount` now follows `maxp.numGlyphs` for these fonts.
 - Bitmap-only EBLC/EBDT and CBLC/CBDT reading supports index subtable formats 1–5, sparse glyph IDs and shared metrics instead of unconditional or placeholder throws. Bitmap counts, offsets and image lengths are bounded; unsupported image formats and vertical layouts report specific `OpenFontNotSupportedException` messages. Rendering, composite EBDT images (8/9), and strike selection remain out of scope.
 - `BasicLatinShaper` applied every GSUB lookup in the font, not only the `liga` and `clig` ligature features, so ordinary letters were replaced by unrelated alternate glyphs (for example Roboto "Hello" shaped to different glyphs than the cmap). It now applies only lookups of those two features.
