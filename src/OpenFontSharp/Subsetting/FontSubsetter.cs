@@ -13,7 +13,7 @@ namespace OpenFontSharp.Subsetting;
 /// </para>
 /// <para>
 /// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
-/// their default instance), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0
+/// their default instance), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0
 /// wrapping either, and one font of a collection via
 /// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
@@ -30,14 +30,15 @@ public static class FontSubsetter
     /// is retained, the font is returned whole with an empty
     /// <see cref="SubsetResult.GlyphIdMap"/>.
     /// </remarks>
-    /// <param name="fontData">The original standalone font or WOFF1 bytes.</param>
+    /// <param name="fontData">The original standalone font or WOFF1/WOFF2 bytes.</param>
     /// <param name="usedGlyphIds">Glyph IDs mapped or shaped against the original font.</param>
     /// <returns>The font bytes and old-to-new ID map; an empty map means IDs are unchanged.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="NotSupportedException">
-    /// The font's format cannot be subset (collection without an index, WOFF2, CFF2
-    /// or unrecognised data).
+    /// The font's format cannot be subset (collection without an index, CFF2,
+    /// or unrecognised data), or no WOFF2 Brotli hook is installed.
     /// </exception>
+    /// <exception cref="InvalidDataException">The WOFF2 input is malformed.</exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
     {
         ArgumentNullException.ThrowIfNull(fontData);
@@ -67,9 +68,7 @@ public static class FontSubsetter
                     "FontSubsetter.Subset(fontData, fontIndex, usedGlyphIds).");
 
             case FontContainerFormat.Woff2:
-                throw new NotSupportedException(
-                    "WOFF2 fonts cannot be subset: decoding WOFF2's transformed glyf/loca " +
-                    "tables is not implemented. Convert the font to TTF/OTF first.");
+                return SubsetSfnt(WebFont.Woff2Converter.ToSfnt(fontData), usedGlyphIds);
 
             default:
                 throw new NotSupportedException(

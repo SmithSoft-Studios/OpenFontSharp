@@ -19,7 +19,7 @@ The remaining 14 compiler warnings predate this cleanup and are not suppressed:
 
 | Diagnostic | Count | Explanation |
 |---|---:|---|
-| `CS0219` | 2 | Unused `useMatrix` and `hasScale` locals in the incomplete WOFF2 outline decoder |
+| `CS0219` | 2 | Unused `useMatrix` and `hasScale` locals in the legacy WOFF2 outline decoder (not used by the standalone converter) |
 | `CS0414` | 1 | The assigned but unused `Glyph._onlyLayoutEssMode` marker |
 | `CS0649` | 11 | Unassigned fields in legacy bitmap glyph-format/component records |
 
@@ -73,6 +73,14 @@ Constructing a low-level table directly does not load it. Likewise, `GetMathGlyp
 
 Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and related data. `RestoreUp` still attempts restoration only when trimmed; a header mismatch leaves the typeface trimmed. Check the resulting state and use the original font stream and the first restoration ticket.
 
+## WOFF2 conversion and subsetting
+
+`Woff2Converter.ToSfnt` converts standalone WOFF2 fonts to plain sfnt bytes, including transformed TrueType `glyf`/`loca` and `hmtx` tables. `FontSubsetter.Subset` and `OpenFontReader` use this converter. Supply `Woff2DefaultBrotliDecompressFunc.DecompressHandler` at startup, or pass a decoder directly to the converter. Without a decoder, conversion throws `NotSupportedException`; malformed data throws `InvalidDataException`. Input, declared sfnt size, and reconstructed output are limited to 128 MiB; the decompressed table-data stream is limited to 64 MiB. The converter bounds decompression and reconstruction rather than trusting file-declared allocation sizes. WOFF2 collections remain unsupported.
+
+Transformed composite graphs are checked for cycles and limited to 16 nesting levels, 65,535 expanded points/contours per glyph, and 4,194,304 expanded points across the font.
+
+Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart, and a Brotli-compressed WOFF2 wrapper built in the test from the existing Great Vibes OTF. This is not a claim of exhaustive real-world font coverage.
+
 ## Colour and bitmap tables
 
 The read-only `Typeface.GetColorLayers(ushort)` API exposes COLR v0 layer glyph IDs and palette entry indices in painting order. Palette index `0xFFFF` denotes the foreground colour. `PaletteCount` and `GetPalette(int)` expose CPAL v0/v1 colour records in BGRA order with sRGB colour components. Absent or trimmed layers give an empty list; absent, trimmed, or out-of-range palette access throws `ArgumentOutOfRangeException`. Returned lists and their value-type entries cannot be modified, and changing the legacy low-level table arrays does not change these views.
@@ -91,8 +99,7 @@ Colour/bitmap rendering and colour/bitmap-aware subsetting remain out of scope. 
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
 - CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3); CFF2 and Type 1 charstrings are not subset.
-- WOFF2 transformed-outline decoding remains incomplete.
 
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 
-See the [README examples](../README.md) for choosing an appropriate workflow. The remaining limitations above are documented, not changed by the warning cleanup.
+See the [README examples](../README.md) for choosing an appropriate workflow. These remaining limitations are not changed by WOFF2 conversion support.

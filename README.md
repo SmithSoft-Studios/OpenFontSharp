@@ -138,10 +138,22 @@ WoffDefaultZlibDecompressFunc.DecompressHandler = (compressed, output) =>
 };
 ```
 
-Then use `OpenFontReader` as with a standalone font. WOFF2 also has a host Brotli-decompression hook, but transformed TrueType outline decoding is incomplete; do not treat WOFF2 as fully supported for outlines or subsetting. Prefer converting WOFF2 to TTF/OTF outside this library. The byte-based WOFF1 subsetter uses built-in .NET zlib decompression and does not need the reader hook.
+Then use `OpenFontReader` as with a standalone font. For WOFF2 reading, conversion, and subsetting, install the host Brotli hook once during startup:
+
+```csharp
+Woff2DefaultBrotliDecompressFunc.DecompressHandler = (compressed, output) =>
+{
+    using var input = new MemoryStream(compressed);
+    using var brotli = new BrotliStream(input, CompressionMode.Decompress);
+    brotli.CopyTo(output);
+    return true;
+};
+```
+
+`Woff2Converter.ToSfnt(woff2Bytes)` returns standalone TTF/OTF bytes, reconstructing transformed `glyf`, `loca`, and `hmtx` tables per the [W3C WOFF2 Recommendation](https://www.w3.org/TR/WOFF2/). An optional second argument supplies a per-call Brotli decoder instead of the default hook. No Brotli package is required by the library; without a hook it throws `NotSupportedException`. WOFF2 collections are not supported. The byte-based WOFF1 subsetter uses built-in .NET zlib decompression and does not need the reader hook.
 
 ## Font subsetting
-`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. Glyph outlines are copied verbatim, never re-encoded.
+`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, glyph outlines are copied verbatim, never re-encoded by the subsetter.
 
 ```csharp
 var result = FontSubsetter.Subset(fontBytes, usedGlyphIds);        // or Subset(typeface, usedGlyphIds)
@@ -161,7 +173,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |
-| WOFF 2.0 (`.woff2`) | Roboto | Throws `NotSupportedException` (WOFF2's transformed `glyf`/`loca` decoding is not implemented) |
+| WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto; in-test Great Vibes wrapper | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
 | Colour / bitmap tables | Synthetic reader tests | Reading only; colour/bitmap-aware subsetting is not implemented. Outline subsets drop these tables; bitmap-only inputs are returned whole |
 | Unrecognised data | n/a | Throws `NotSupportedException` |
 

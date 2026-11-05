@@ -5,11 +5,14 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
+- Standalone WOFF2-to-sfnt conversion via `Woff2Converter.ToSfnt`, including transformed TrueType `glyf`/`loca` and `hmtx`, bounded decoding, table checksums, and `head.checkSumAdjustment`. Brotli remains host-supplied; WOFF2 collections are not supported.
 - CID-keyed CFF1 subsetting retains the CIDs, remaps FDSelect formats 0/3, and keeps only the Font DICTs used by retained glyphs; subroutines are kept whole.
 - `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.
 - Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
 ### Fixed
+- `FontSubsetter.Subset` now accepts standalone WOFF2 bytes and typefaces read from WOFF2. `OpenFontReader` uses the standalone converter for WOFF2 fonts.
+- Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 - CBLC/CBDT and EBLC/EBDT bitmap lookup is keyed by glyph ID. The previous reader returned the bitmap of a different glyph (checked with Noto Color Emoji 2.051: U+1F600 returned the sweat-smile emoji and U+1F355 a bowl of rice); `Typeface.GlyphCount` now follows `maxp.numGlyphs` for these fonts.
 - Bitmap-only EBLC/EBDT and CBLC/CBDT reading supports index subtable formats 1–5, sparse glyph IDs and shared metrics instead of unconditional or placeholder throws. Bitmap counts, offsets and image lengths are bounded; unsupported image formats and vertical layouts report specific `OpenFontNotSupportedException` messages. Rendering, composite EBDT images (8/9), and strike selection remain out of scope.
 - `BasicLatinShaper` applied every GSUB lookup in the font, not only the `liga` and `clig` ligature features, so ordinary letters were replaced by unrelated alternate glyphs (for example Roboto "Hello" shaped to different glyphs than the cmap). It now applies only lookups of those two features.

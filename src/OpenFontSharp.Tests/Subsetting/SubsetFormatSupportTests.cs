@@ -197,21 +197,53 @@ public class SubsetFormatSupportTests
     }
 
     [Fact]
-    public void Woff2_ThrowsNotSupported()
+    public void Woff2_IsDecodedAndSubsetFaithfully()
     {
-        var act = () => FontSubsetter.Subset(FontFiles.Bytes(FontFiles.RobotoWoff2), new HashSet<ushort> { 1, 2, 3 });
+        var original = FontFiles.Load(FontFiles.RobotoRegular);
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*WOFF2*");
+        var result = FontSubsetter.Subset(
+            FontFiles.Bytes(FontFiles.RobotoWoff2), FontFiles.GlyphsFor(original, FontFiles.SampleText));
+
+        SubsetVerifier.VerifyFaithful(original, result);
     }
 
     [Fact]
-    public void Woff2_ReadAsTypeface_ThrowsNotSupported()
+    public void Woff2_ReadAsTypeface_IsSubsetFaithfully()
     {
         var typeface = FontFiles.Load(FontFiles.RobotoWoff2);
+        var original = FontFiles.Load(FontFiles.RobotoRegular);
 
-        var act = () => FontSubsetter.Subset(typeface, new HashSet<ushort> { 1, 2, 3 });
+        var result = FontSubsetter.Subset(typeface, FontFiles.GlyphsFor(typeface, FontFiles.SampleText));
 
-        act.Should().Throw<NotSupportedException>().WithMessage("*WOFF2*");
+        SubsetVerifier.VerifyFaithful(original, result);
+    }
+
+    [Fact]
+    public void Woff2_WhenNothingIsDropped_ReturnsPlainSfnt()
+    {
+        var original = FontFiles.Load(FontFiles.RobotoRegular);
+        var everyGlyph = Enumerable.Range(0, original.GlyphCount).Select(i => (ushort)i).ToHashSet();
+
+        var result = FontSubsetter.Subset(FontFiles.Bytes(FontFiles.RobotoWoff2), everyGlyph);
+
+        result.GlyphIdMap.Should().BeEmpty();
+        SfntInspector.Parse(result.FontData).SfntVersion.Should().Be(0x00010000u);
+        FontFiles.Load(result.FontData).GlyphCount.Should().Be(original.GlyphCount);
+    }
+
+    [Fact]
+    public void Woff2_Preview_MatchesTrueType()
+    {
+        var reader = new OpenFontReader();
+        var expected = reader.ReadPreview(new MemoryStream(FontFiles.Bytes(FontFiles.RobotoRegular)));
+        var actual = reader.ReadPreview(new MemoryStream(FontFiles.Bytes(FontFiles.RobotoWoff2)));
+
+        Assert.NotNull(expected);
+        Assert.NotNull(actual);
+        actual.Name.Should().Be(expected.Name);
+        actual.SubFamilyName.Should().Be(expected.SubFamilyName);
+        actual.PostScriptName.Should().Be(expected.PostScriptName);
+        actual.WeightClass.Should().Be(expected.WeightClass);
     }
 
     [Fact]

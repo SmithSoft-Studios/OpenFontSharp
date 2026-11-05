@@ -81,6 +81,7 @@ public class NullableContractTests
     [Theory]
     [InlineData(FontFiles.RobotoRegular)]
     [InlineData(FontFiles.GreatVibes)]
+    [InlineData(FontFiles.RobotoWoff2)]
     public void TrimAndRestore_PreservesMetricsAndRestoresFormatSpecificOutlines(string font)
     {
         var bytes = FontFiles.Bytes(font);
