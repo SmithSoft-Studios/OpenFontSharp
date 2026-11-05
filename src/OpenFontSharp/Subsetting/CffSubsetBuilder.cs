@@ -773,6 +773,7 @@ public static class CffSubsetBuilder
 
                 if (b0 == 28)
                 {
+                    RequireBytes(code, pos, 3);
                     _stack.Add((short)((code[pos + 1] << 8) | code[pos + 2]));
                     pos += 3;
                     continue;
@@ -785,18 +786,21 @@ public static class CffSubsetBuilder
                 }
                 if (b0 is >= 247 and <= 250)
                 {
+                    RequireBytes(code, pos, 2);
                     _stack.Add(((b0 - 247) * 256) + code[pos + 1] + 108);
                     pos += 2;
                     continue;
                 }
                 if (b0 is >= 251 and <= 254)
                 {
+                    RequireBytes(code, pos, 2);
                     _stack.Add((-(b0 - 251) * 256) - code[pos + 1] - 108);
                     pos += 2;
                     continue;
                 }
                 if (b0 == 255)
                 {
+                    RequireBytes(code, pos, 5);
                     // 16.16 fixed; the integer part is enough for counting.
                     _stack.Add((short)((code[pos + 1] << 8) | code[pos + 2]));
                     pos += 5;
@@ -818,7 +822,9 @@ public static class CffSubsetBuilder
                     case 20: // cntrmask
                         _stems += _stack.Count / 2; // implicit vstem arguments
                         _stack.Clear();
-                        pos += (_stems + 7) / 8;
+                        int maskLength = (_stems + 7) / 8;
+                        RequireBytes(code, pos, maskLength);
+                        pos += maskLength;
                         break;
 
                     case 10: // callsubr
@@ -842,6 +848,7 @@ public static class CffSubsetBuilder
                         return;
 
                     case 12: // escape: two-byte operators
+                        RequireBytes(code, pos, 1);
                         pos++;
                         _stack.Clear();
                         break;
@@ -851,6 +858,12 @@ public static class CffSubsetBuilder
                         break;
                 }
             }
+        }
+
+        private static void RequireBytes(ReadOnlySpan<byte> code, int offset, int count)
+        {
+            if (count > code.Length - offset)
+                throw new InvalidDataException("A Type 2 charstring operand or hint mask is truncated.");
         }
 
         private void CallSubr(bool global, int depth)

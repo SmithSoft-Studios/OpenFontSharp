@@ -79,6 +79,7 @@ namespace OpenFontSharp
     /// <summary>Reads font metadata, glyphs, and OpenType tables from seekable binary streams.</summary>
     public class OpenFontReader
     {
+        private const uint MaxFontCollectionCount = 1024;
 
         class FontCollectionHeader
         {
@@ -120,46 +121,51 @@ namespace OpenFontSharp
         /// </summary>
         /// <param name="stream">A readable, seekable font stream. The reader closes it when finished.</param>
         /// <returns>A font or collection preview, or null when a web-font decoder cannot read it.</returns>
-        /// <exception cref="NullReferenceException">A required metadata table is missing.</exception>
-        /// <exception cref="EndOfStreamException">The stream ends before a required value can be read.</exception>
+        /// <exception cref="InvalidDataException">The font data is truncated, malformed, or missing a required metadata table.</exception>
         /// <exception cref="NotSupportedException">The WOFF2 font is a collection or no Brotli hook is installed.</exception>
-        /// <exception cref="InvalidDataException">The WOFF2 data is malformed.</exception>
         public PreviewFontInfo? ReadPreview(Stream stream)
         {
-            //var little = BitConverter.IsLittleEndian;
-            using (var input = new ByteOrderSwappingBinaryReader(stream))
+            try
             {
-                ushort majorVersion = input.ReadUInt16();
-                ushort minorVersion = input.ReadUInt16();
+                //var little = BitConverter.IsLittleEndian;
+                using (var input = new ByteOrderSwappingBinaryReader(stream))
+                {
+                    ushort majorVersion = input.ReadUInt16();
+                    ushort minorVersion = input.ReadUInt16();
 
-                if (KnownFontFiles.IsTtcf(majorVersion, minorVersion))
-                {
-                    //this font stream is 'The Font Collection'
-                    FontCollectionHeader ttcHeader = ReadTTCHeader(input);
-                    PreviewFontInfo[] members = new PreviewFontInfo[ttcHeader.numFonts];
-                    for (uint i = 0; i < ttcHeader.numFonts; ++i)
+                    if (KnownFontFiles.IsTtcf(majorVersion, minorVersion))
                     {
-                        input.BaseStream.Seek(ttcHeader.offsetTables[i], SeekOrigin.Begin);
-                        PreviewFontInfo member = members[i] = ReadActualFontPreview(input, false);
-                        member.ActualStreamOffset = ttcHeader.offsetTables[i];
+                        //this font stream is 'The Font Collection'
+                        FontCollectionHeader ttcHeader = ReadTTCHeader(input);
+                        PreviewFontInfo[] members = new PreviewFontInfo[ttcHeader.numFonts];
+                        for (uint i = 0; i < ttcHeader.numFonts; ++i)
+                        {
+                            input.BaseStream.Seek(ttcHeader.offsetTables[i], SeekOrigin.Begin);
+                            PreviewFontInfo member = members[i] = ReadActualFontPreview(input, false);
+                            member.ActualStreamOffset = ttcHeader.offsetTables[i];
+                        }
+                        return new PreviewFontInfo(BuildTtcfName(members), members);
                     }
-                    return new PreviewFontInfo(BuildTtcfName(members), members);
+                    else if (KnownFontFiles.IsWoff(majorVersion, minorVersion))
+                    {
+                        //check if we enable woff or not
+                        WebFont.WoffReader woffReader = new WebFont.WoffReader();
+                        input.BaseStream.Position = 0;
+                        return woffReader.ReadPreview(input);
+                    }
+                    else if (KnownFontFiles.IsWoff2(majorVersion, minorVersion))
+                    {
+                        return ReadPreview(new MemoryStream(DecodeWoff2(input.BaseStream)));
+                    }
+                    else
+                    {
+                        return ReadActualFontPreview(input, true);//skip version data (majorVersion, minorVersion)
+                    }
                 }
-                else if (KnownFontFiles.IsWoff(majorVersion, minorVersion))
-                {
-                    //check if we enable woff or not
-                    WebFont.WoffReader woffReader = new WebFont.WoffReader();
-                    input.BaseStream.Position = 0;
-                    return woffReader.ReadPreview(input);
-                }
-                else if (KnownFontFiles.IsWoff2(majorVersion, minorVersion))
-                {
-                    return ReadPreview(new MemoryStream(DecodeWoff2(input.BaseStream)));
-                }
-                else
-                {
-                    return ReadActualFontPreview(input, true);//skip version data (majorVersion, minorVersion)
-                }
+            }
+            catch (EndOfStreamException exception)
+            {
+                throw new InvalidDataException("The font data is truncated.", exception);
             }
         }
         FontCollectionHeader ReadTTCHeader(ByteOrderSwappingBinaryReader input)
@@ -187,6 +193,11 @@ namespace OpenFontSharp
             ushort majorVersion = input.ReadUInt16();
             ushort minorVersion = input.ReadUInt16();
             uint numFonts = input.ReadUInt32();
+            if (numFonts == 0 || numFonts > MaxFontCollectionCount ||
+                numFonts > (input.BaseStream.Length - input.BaseStream.Position) / sizeof(int))
+            {
+                throw new InvalidDataException("The font collection count is out of range.");
+            }
             int[] offsetTables = new int[numFonts];
             for (uint i = 0; i < numFonts; ++i)
             {
@@ -240,11 +251,9 @@ namespace OpenFontSharp
         /// <param name="streamStartOffset">The member offset obtained from <see cref="ReadPreview"/>, or zero for a standalone font.</param>
         /// <param name="readFlags">Reserved read options; the current implementation loads all tables.</param>
         /// <returns>The parsed font, or null for a collection without a member offset or when decoding fails.</returns>
-        /// <exception cref="NullReferenceException">A required font table is missing.</exception>
+        /// <exception cref="InvalidDataException">The font data is truncated, malformed, or missing a required font table.</exception>
         /// <exception cref="OpenFontNotSupportedException">The outline format is not supported.</exception>
-        /// <exception cref="EndOfStreamException">The font data is truncated.</exception>
         /// <exception cref="NotSupportedException">The WOFF2 font is a collection or no Brotli hook is installed.</exception>
-        /// <exception cref="InvalidDataException">The WOFF2 data is malformed.</exception>
         public Typeface? Read(Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
             Typeface typeface = new Typeface();
@@ -254,12 +263,19 @@ namespace OpenFontSharp
             // has forgotten where it came from cannot be subset at all.
             byte[]? originalData = CaptureOriginalBytes(stream, streamStartOffset);
 
-            if (Read(typeface, null, stream, streamStartOffset, readFlags))
+            try
             {
-                typeface._originalFontData = originalData;
-                return typeface;
+                if (Read(typeface, null, stream, streamStartOffset, readFlags))
+                {
+                    typeface._originalFontData = originalData;
+                    return typeface;
+                }
+                return null;
             }
-            return null;
+            catch (EndOfStreamException exception)
+            {
+                throw new InvalidDataException("The font data is truncated.", exception);
+            }
         }
 
         private static byte[]? CaptureOriginalBytes(Stream stream, int streamStartOffset)
@@ -407,7 +423,7 @@ namespace OpenFontSharp
             }
 
             public T ReadRequired<T>(T resultTable) where T : TableEntry =>
-                Read(resultTable) ?? throw new NullReferenceException($"Required font table '{resultTable.Name}' is missing.");
+                Read(resultTable) ?? throw new InvalidDataException($"Required font table '{resultTable.Name}' is missing.");
         }
 
 

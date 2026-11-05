@@ -924,7 +924,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 //5.1 Context Substitution Format 1: Simple Glyph Contexts
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
-                    throw new NotImplementedException();
+                    throw new OpenFontNotSupportedException("Collecting glyphs from GSUB contextual format 1 is not supported.");
                 }
 
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
@@ -1152,12 +1152,12 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             {
                 public override void CollectAssociatedSubtitutionGlyphs(List<ushort> outputAssocGlyphs)
                 {
-                    throw new NotImplementedException();
+                    throw new OpenFontNotSupportedException("GSUB contextual format 3 is not supported.");
                 }
 
                 public override bool DoSubstitutionAt(IGlyphIndexList glyphIndices, int pos, int len)
                 {
-                    throw new NotImplementedException();
+                    throw new OpenFontNotSupportedException("GSUB contextual format 3 is not supported.");
                 }
             }
 
@@ -1685,7 +1685,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <param name="subTableStartAt">The stream offset of the lookup subtable.</param>
             static LookupSubTable ReadLookupType8(BinaryReader reader, long subTableStartAt)
             {
-                throw new NotImplementedException();
+                throw new OpenFontNotSupportedException("GSUB reverse chaining contextual substitutions are not supported.");
             }
         }
     }
