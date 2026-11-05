@@ -75,9 +75,11 @@ Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and re
 
 ## WOFF2 conversion and subsetting
 
-`Woff2Converter.ToSfnt` converts standalone WOFF2 fonts to plain sfnt bytes, including transformed TrueType `glyf`/`loca` and `hmtx` tables. `FontSubsetter.Subset` and `OpenFontReader` use this converter. Supply `Woff2DefaultBrotliDecompressFunc.DecompressHandler` at startup, or pass a decoder directly to the converter. Without a decoder, conversion throws `NotSupportedException`; malformed data throws `InvalidDataException`. Input, declared sfnt size, and reconstructed output are limited to 128 MiB; decompressed transformed data is limited to 64 MiB. The converter bounds decompression and reconstruction rather than trusting file-declared allocation sizes. WOFF2 collections remain unsupported.
+`Woff2Converter.ToSfnt` converts standalone WOFF2 fonts to plain sfnt bytes, including transformed TrueType `glyf`/`loca` and `hmtx` tables. `FontSubsetter.Subset` and `OpenFontReader` use this converter. Supply `Woff2DefaultBrotliDecompressFunc.DecompressHandler` at startup, or pass a decoder directly to the converter. Without a decoder, conversion throws `NotSupportedException`; malformed data throws `InvalidDataException`. Input, declared sfnt size, and reconstructed output are limited to 128 MiB; the decompressed table-data stream is limited to 64 MiB. The converter bounds decompression and reconstruction rather than trusting file-declared allocation sizes. WOFF2 collections remain unsupported.
 
-Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, and faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart. This is not a claim of exhaustive real-world font coverage.
+Transformed composite graphs are checked for cycles and limited to 16 nesting levels, 65,535 expanded points/contours per glyph, and 4,194,304 expanded points across the font.
+
+Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart, and a Brotli-compressed WOFF2 wrapper built in the test from the existing Great Vibes OTF. This is not a claim of exhaustive real-world font coverage.
 
 ## Remaining limitations
 

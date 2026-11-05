@@ -165,7 +165,7 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When 
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |
-| WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
+| WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto; in-test Great Vibes wrapper | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
 | Unrecognised data | n/a | Throws `NotSupportedException` |
 
 What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`cvt `, `fpgm`, `prep`, `gasp`) and the outline tables (`glyf`/`loca` or `CFF `). `post` becomes version 3 (no glyph names, though CFF glyph names survive in the charset), and `cmap` is reduced to an empty table, since PDF Identity-H embedding does not use it. Layout and kerning tables (`GSUB`, `GPOS`, `GDEF`, `kern`) are dropped.

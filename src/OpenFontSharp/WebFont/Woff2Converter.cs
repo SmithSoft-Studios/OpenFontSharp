@@ -10,6 +10,7 @@ public static class Woff2Converter
     // Bounds apply before allocation, including output from an untrusted host decompressor.
     private const int MaxFontSize = 128 * 1024 * 1024;
     private const int MaxTransformedSize = 64 * 1024 * 1024;
+    private const int MaxExpandedPoints = 4 * 1024 * 1024;
     private static readonly string[] KnownTags = [
         "cmap", "head", "hhea", "hmtx", "maxp", "name", "OS/2", "post",
         "cvt ", "fpgm", "glyf", "loca", "prep", "CFF ", "VORG", "EBDT",
@@ -32,11 +33,13 @@ public static class Woff2Converter
     /// <exception cref="InvalidDataException">The container, transform, or decompressed data is invalid.</exception>
     /// <exception cref="NotSupportedException">The font is a collection, or no Brotli hook is installed.</exception>
     /// <remarks>
-    /// Font input, declared sfnt size, and reconstructed output are limited to 128 MiB;
+    /// Font input, declared original sfnt sizes, and reconstructed output are limited to 128 MiB;
     /// the decompressed transformed data is limited to 64 MiB. Metadata and private
     /// data are bounds-checked but are not copied into the sfnt. Reconstructed glyph
     /// encodings may differ from the original; short loca is promoted to long loca
-    /// if the reconstructed glyph offsets require it.
+    /// if the reconstructed glyph offsets require it. Transformed outlines must have
+    /// an acyclic component graph with depth at most 16, at most 65535 expanded points
+    /// and contours per glyph, and at most 4194304 expanded points across the font.
     /// </remarks>
     public static byte[] ToSfnt(byte[] woff2, BrotliDecompressStreamFunc? brotli = null)
     {
@@ -51,8 +54,8 @@ public static class Woff2Converter
         Require(input.U32() == woff2.Length, "Invalid WOFF2 file length.");
         int count = input.U16();
         Require(count is > 0 and <= 4095, "Invalid WOFF2 table count.");
-        Require(input.U16() == 0, "Invalid WOFF2 reserved header field.");
-        int sfntSize = Size(input.U32(), MaxFontSize);
+        input.Skip(2); // WOFF2 section 3.2 requires decoders to ignore a nonzero reserved field.
+        Size(input.U32(), MaxFontSize); // Advisory totalSfntSize: bound it, but do not require equality.
         int compressedSize = Size(input.U32(), MaxFontSize);
         input.Skip(4); // majorVersion and minorVersion
         uint metaOffset = input.U32(), metaLength = input.U32(), metaOriginal = input.U32();
@@ -80,7 +83,11 @@ public static class Woff2Converter
             transformedSize += storedLength;
             entries.Add(new Entry(tag, originalLength, storedLength, transformed));
         }
-        Require(originalSize == sfntSize, "Inconsistent WOFF2 totalSfntSize.");
+        Entry? glyf = entries.Find(e => e.Tag == "glyf");
+        Entry? loca = entries.Find(e => e.Tag == "loca");
+        Require((glyf == null) == (loca == null), "WOFF2 glyf and loca must occur together.");
+        Require(glyf == null || loca!.Transformed == glyf.Transformed, "WOFF2 glyf and loca transforms must match.");
+        Require(glyf == null || entries.IndexOf(glyf) < entries.IndexOf(loca!), "WOFF2 loca must follow glyf in the directory.");
         int compressedStart = input.Position;
         Require(compressedSize > 0 && compressedSize <= input.Remaining, "Invalid WOFF2 compressed data length.");
         long end = (long)compressedStart + compressedSize;
@@ -108,10 +115,6 @@ public static class Woff2Converter
         var tables = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         foreach (Entry entry in entries) tables.Add(entry.Tag, payload.Bytes(entry.StoredLength));
 
-        Entry? glyf = entries.Find(e => e.Tag == "glyf");
-        Entry? loca = entries.Find(e => e.Tag == "loca");
-        Require((glyf == null) == (loca == null), "WOFF2 glyf and loca must occur together.");
-        Require(glyf == null || loca!.Transformed == glyf.Transformed, "WOFF2 glyf and loca transforms must match.");
         short[]? xMins = null;
         if (glyf is { Transformed: true })
         {
@@ -163,6 +166,9 @@ public static class Woff2Converter
         using var output = new LimitedStream(MaxFontSize);
         var locations = new uint[count + 1];
         var xMins = new short[count];
+        var children = new List<int>?[count];
+        var pointCounts = new int[count];
+        var contourCounts = new int[count];
         for (int g = 0; g < count; g++)
         {
             locations[g] = (uint)output.Length;
@@ -182,12 +188,14 @@ public static class Woff2Converter
                 WriteWords(output, -1, xMin, yMin, xMax, yMax);
                 bool hasInstructions = false;
                 int componentFlags;
+                var components = children[g] = [];
                 do
                 {
                     int start = composites.Position;
                     componentFlags = composites.U16();
                     int component = composites.U16();
                     Require(component < count, "Invalid composite glyph index.");
+                    components.Add(component);
                     int scaleFlags = componentFlags & (8 | 64 | 128);
                     Require(scaleFlags is 0 or 8 or 64 or 128, "Invalid composite glyph scale flags.");
                     composites.Skip((componentFlags & 1) != 0 ? 4 : 2);
@@ -209,10 +217,12 @@ public static class Woff2Converter
                 for (int i = 0; i < contourCount; i++)
                 {
                     int n = points.UInt255();
-                    Require(n > 0 && n <= 65536 - pointCount, "Invalid contour point count.");
+                    Require(n > 0 && n <= ushort.MaxValue - pointCount, "Invalid contour point count.");
                     pointCount += n;
                     ends[i] = pointCount - 1;
                 }
+                pointCounts[g] = pointCount;
+                contourCounts[g] = contourCount;
                 var xs = new int[pointCount];
                 var ys = new int[pointCount];
                 var pointFlags = new byte[pointCount];
@@ -243,7 +253,8 @@ public static class Woff2Converter
                 x = y = 0;
                 for (int p = 0; p < pointCount; p++)
                 {
-                    int dx = xs[p] - x, dy = ys[p] - y;
+                    // Normalize before selecting byte/word encodings: sfnt coordinates wrap to int16.
+                    int dx = unchecked((short)(xs[p] - x)), dy = unchecked((short)(ys[p] - y));
                     x = xs[p]; y = ys[p];
                     xs[p] = dx; ys[p] = dy;
                     pointFlags[p] |= (byte)(CoordinateFlag(dx, 2, 16) | CoordinateFlag(dy, 4, 32));
@@ -267,6 +278,7 @@ public static class Woff2Converter
         locations[count] = (uint)output.Length;
         foreach (Reader stream in new[] { source, contours, points, flags, glyphs, composites, boxes, instructions })
             Require(stream.Remaining == 0, "Unconsumed transformed glyf substream data.");
+        ValidateComponents(children, pointCounts, contourCounts);
         if (indexFormat == 0 && output.Length > 131070)
         {
             // WOFF2 retains outlines, not the original TrueType point-flag encoding.
@@ -285,6 +297,38 @@ public static class Woff2Converter
         return xMins;
     }
 
+    private static void ValidateComponents(List<int>?[] children, int[] points, int[] contours)
+    {
+        var states = new byte[children.Length];
+        var depths = new int[children.Length];
+        long expandedPoints = 0;
+        void Visit(int glyph, int stackDepth)
+        {
+            Require(stackDepth <= 16, "Composite glyph nesting exceeds the OpenType limit of 16.");
+            Require(states[glyph] != 1, "Cyclic composite glyph reference.");
+            if (states[glyph] == 2) return;
+            states[glyph] = 1;
+            if (children[glyph] is { } components)
+            {
+                foreach (int child in components)
+                {
+                    Visit(child, stackDepth + 1);
+                    Require(points[child] <= ushort.MaxValue - points[glyph] &&
+                        contours[child] <= ushort.MaxValue - contours[glyph],
+                        "Composite glyph expansion exceeds the UInt16 point or contour limit.");
+                    points[glyph] += points[child];
+                    contours[glyph] += contours[child];
+                    depths[glyph] = Math.Max(depths[glyph], depths[child] + 1);
+                }
+                Require(depths[glyph] <= 16, "Composite glyph nesting exceeds the OpenType limit of 16.");
+            }
+            states[glyph] = 2;
+            expandedPoints += points[glyph];
+            Require(expandedPoints <= MaxExpandedPoints, "Expanded glyph points exceed the font resource limit.");
+        }
+        for (int glyph = 0; glyph < children.Length; glyph++) Visit(glyph, 0);
+    }
+
     private static int CoordinateFlag(int delta, int shortFlag, int sameFlag)
         => delta == 0 ? sameFlag : delta is >= -255 and <= 255 ? shortFlag | (delta > 0 ? sameFlag : 0) : 0;
 
@@ -292,9 +336,7 @@ public static class Woff2Converter
     {
         if (delta == 0) return;
         if (delta is >= -255 and <= 255) output.WriteByte((byte)Math.Abs(delta));
-        // Full-width triplets can span both signed-coordinate extremes. TrueType
-        // stores the delta's low 16 bits; coordinate accumulation wraps to int16.
-        else WriteWords(output, unchecked((short)delta));
+        else WriteWords(output, delta);
     }
 
     private static (int X, int Y) Triplet(int flag, Reader stream)

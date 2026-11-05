@@ -134,6 +134,27 @@ public class Woff2ConverterTests
     }
 
     [Fact]
+    public void CompactSerializationKeepsLargeZeroDeltaGlyphInShortLoca()
+    {
+        const int count = 30000;
+        var points = Enumerable.Repeat(((short)1, (short)1, true), count).ToList();
+        byte[] glyph = Simple(points, [], false);
+        Assert.True(count * 5 + 14 > 131070 && glyph.Length < 131070);
+        byte[][] streams = [
+            Words(1), Encoded255(count), [127, .. new byte[count - 1]],
+            [0, 1, 0, 1, .. new byte[count - 1], 0], [], new byte[4], []
+        ];
+        var tables = BaseTables(1, false);
+        tables.Add(new("glyf", glyph, GlyfTransform(1, false, streams)));
+        tables.Add(new("loca", Words(0, glyph.Length / 2), []));
+        byte[] actual = Woff2Converter.ToSfnt(Container(tables), Copy);
+        Assert.Equal(Sfnt(tables), actual);
+        var font = SfntInspector.Parse(actual);
+        Assert.False(font.LongLoca);
+        Assert.Equal(points, DecodeSimplePoints(font.GlyphRecord(0)));
+    }
+
+    [Fact]
     public void FullWidthTripletMagnitudesRoundTripSignedCoordinateExtremes()
     {
         var points = new List<(short X, short Y, bool On)> {
@@ -153,6 +174,66 @@ public class Woff2ConverterTests
         byte[] actual = Woff2Converter.ToSfnt(Container(tables), Copy);
         Assert.Equal(Sfnt(tables), actual);
         Assert.Equal(points, DecodeSimplePoints(SfntInspector.Parse(actual).GlyphRecord(0)));
+    }
+
+    [Fact]
+    public void SignedDeltaNormalizationKeepsAlternatingExtremesInShortLoca()
+    {
+        const int count = 40000;
+        var points = new List<(short X, short Y, bool On)>();
+        var flags = new List<byte>();
+        var triplets = new List<byte>();
+        for (int i = 0; i < count; i++)
+        {
+            short coordinate = i % 2 == 0 ? short.MinValue : short.MaxValue;
+            points.Add((coordinate, coordinate, true));
+            flags.Add((byte)(i % 2 == 0 ? 124 : 127));
+            int magnitude = i == 0 ? 32768 : 65535;
+            triplets.AddRange(Words(magnitude, magnitude));
+        }
+        triplets.Add(0);
+        byte[] glyph = Simple(points, [], false);
+        Assert.True(count * 4 > 131070 && glyph.Length <= 131070);
+        byte[][] streams = [
+            Words(1), Encoded255(count), flags.ToArray(), triplets.ToArray(), [], new byte[4], []
+        ];
+        var tables = BaseTables(1, false);
+        tables.Add(new("glyf", glyph, GlyfTransform(1, false, streams)));
+        tables.Add(new("loca", Words(0, glyph.Length / 2), []));
+        byte[] actual = Woff2Converter.ToSfnt(Container(tables), Copy);
+        Assert.Equal(Sfnt(tables), actual);
+        var font = SfntInspector.Parse(actual);
+        Assert.False(font.LongLoca);
+        Assert.Equal(points, DecodeSimplePoints(font.GlyphRecord(0)));
+    }
+
+    [Fact]
+    public void RejectsSelfReferencingCyclicAndOverdeepCompositeGraphs()
+    {
+        int[][] self = [[0]];
+        int[][] cycle = [[1], [0]];
+        int[][] deep = Enumerable.Range(0, 18).Select(i => i == 17 ? Array.Empty<int>() : [i + 1]).ToArray();
+        foreach (int[][] graph in new[] { self, cycle, deep })
+            Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container(GraphFont(graph)), Copy));
+    }
+
+    [Fact]
+    public void AllowsTheMaximumCompositeDepthWithoutFlatteningComponents()
+    {
+        int[][] graph = Enumerable.Range(0, 17).Select(i => i == 16 ? Array.Empty<int>() : [i + 1]).ToArray();
+        var tables = GraphFont(graph);
+        Assert.Equal(Sfnt(tables), Woff2Converter.ToSfnt(Container(tables), Copy));
+    }
+
+    [Fact]
+    public void RejectsCompositePointExpansionBeyondUInt16AndAggregateMemoryBudget()
+    {
+        int[][] doubled = Enumerable.Range(0, 17)
+            .Select(i => i == 16 ? Array.Empty<int>() : new[] { i + 1, i + 1 }).ToArray();
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container(GraphFont(doubled)), Copy));
+        int[][] manyParents = Enumerable.Range(0, 65)
+            .Select(i => i == 64 ? Array.Empty<int>() : new[] { 64 }).ToArray();
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container(GraphFont(manyParents, 65535)), Copy));
     }
 
     [Theory]
@@ -207,6 +288,33 @@ public class Woff2ConverterTests
         });
         Assert.Equal(expected, actual);
         Assert.Equal(new ushort[] { 1 }, SfntInspector.ComponentsOf(SfntInspector.Parse(actual).GlyphRecord(2)));
+    }
+
+    [Fact]
+    public void ExistingCffFontWrappedWithRealBrotliIsSubsetFaithfully()
+    {
+        byte[] originalBytes = FontFiles.Bytes(FontFiles.GreatVibes);
+        var sfnt = SfntInspector.Parse(originalBytes);
+        Table[] tables = sfnt.Directory.Where(t => t.Tag != "DSIG")
+            .Select(t => new Table(t.Tag, sfnt.Bytes(t.Tag))).ToArray();
+        byte[] head = tables.Single(t => t.Tag == "head").Original;
+        Put16(head, 16, SfntInspector.U16(head, 16) | 0x0800);
+        byte[] woff2 = Container(tables, TtfWriter.CffVersion, compress: true);
+        var original = FontFiles.Load(originalBytes);
+        var current = Woff2DefaultBrotliDecompressFunc.DecompressHandler;
+        try
+        {
+            Woff2DefaultBrotliDecompressFunc.DecompressHandler = (input, output) =>
+            {
+                using var stream = new BrotliStream(new MemoryStream(input), CompressionMode.Decompress);
+                stream.CopyTo(output);
+                return true;
+            };
+            var result = FontSubsetter.Subset(woff2, FontFiles.GlyphsFor(original, FontFiles.SampleText));
+            Assert.True(SubsetVerifier.VerifyFaithful(original, result).IsCffFont);
+            Assert.Equal(TtfWriter.CffVersion, SfntInspector.Parse(result.FontData).SfntVersion);
+        }
+        finally { Woff2DefaultBrotliDecompressFunc.DecompressHandler = current; }
     }
 
     [Fact]
@@ -313,7 +421,7 @@ public class Woff2ConverterTests
         foreach (int length in Enumerable.Range(0, good.Length))
             Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(good[..length], Copy));
         foreach ((int offset, uint value) in new (int, uint)[] {
-            (0, 0), (8, 1), (12, 0), (16, uint.MaxValue), (20, uint.MaxValue),
+            (0, 0), (8, 1), (12, 0), (20, uint.MaxValue),
             (28, 1), (40, 1)
         })
         {
@@ -336,6 +444,66 @@ public class Woff2ConverterTests
         byte[] base128 = [.. good[..49], 0x80, .. good[49..]];
         Put32(base128, 8, (uint)base128.Length);
         Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(base128, Copy));
+    }
+
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(1u)]
+    [InlineData(128u * 1024 * 1024)]
+    public void AcceptsAdvisorySfntSizeMismatch(uint referenceSize)
+    {
+        var (tables, expected) = TransformedFont(false, 3);
+        byte[] source = Container(tables);
+        Put32(source, 16, referenceSize);
+        Assert.Equal(expected, Woff2Converter.ToSfnt(source, Copy));
+    }
+
+    [Fact]
+    public void RejectsDeclaredAndSummedOriginalSizesBeyondResourceLimit()
+    {
+        var (tables, _) = TransformedFont(false, 3);
+        byte[] source = Container(tables);
+        Put32(source, 16, uint.MaxValue);
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(source, Copy));
+        source = Container(tables);
+        int originalGlyfLengthOffset = source.AsSpan().IndexOf("glyf"u8) + 4;
+        source = [.. source[..originalGlyfLengthOffset], .. Base128(128u * 1024 * 1024), .. source[(originalGlyfLengthOffset + 1)..]];
+        Put32(source, 8, (uint)source.Length);
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(source, Copy));
+    }
+
+    [Fact]
+    public void ReconstructedGlyfAndSfntLengthsMayDifferFromDeclaredOriginalLengths()
+    {
+        var (tables, expected) = TransformedFont(false, 3);
+        int index = tables.FindIndex(t => t.Tag == "glyf");
+        tables[index] = tables[index] with { Original = [.. tables[index].Original, .. new byte[12]] };
+        byte[] source = Container(tables);
+        byte[] actual = Woff2Converter.ToSfnt(source, Copy);
+        Assert.Equal(expected, actual);
+        Assert.NotEqual(tables[index].Original.Length, SfntInspector.Parse(actual).Bytes("glyf").Length);
+        Assert.NotEqual(SfntInspector.U32(source, 16), (uint)actual.Length);
+    }
+
+    [Fact]
+    public void AcceptsNonzeroReservedHeaderWithConsistentOriginalSize()
+    {
+        var (tables, expected) = TransformedFont(false, 3);
+        byte[] source = Container(tables);
+        Put16(source, 14, 0xFFFF);
+        Assert.Equal(expected, Woff2Converter.ToSfnt(source, Copy));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GlyfMustPrecedeLocaButOtherTablesMayIntervene(bool transformed)
+    {
+        var tables = transformed ? TransformedFont(false, 3).Tables : NullFont().ToList();
+        Table glyf = tables.Single(t => t.Tag == "glyf"), loca = tables.Single(t => t.Tag == "loca");
+        var others = tables.Where(t => t.Tag is not "glyf" and not "loca").ToList();
+        Assert.Equal(Sfnt(tables), Woff2Converter.ToSfnt(Container([glyf, .. others, loca]), Copy));
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container([loca, .. others, glyf]), Copy));
     }
 
     [Fact]
@@ -413,6 +581,54 @@ public class Woff2ConverterTests
         return [new("head", head), new("maxp", maxp)];
     }
 
+    private static List<Table> GraphFont(int[][] children, int leafPoints = 1)
+    {
+        int count = children.Length;
+        var contours = new List<byte>();
+        var pointCounts = new List<byte>();
+        var flags = new List<byte>();
+        var glyphData = new List<byte>();
+        var components = new List<byte>();
+        byte[] bitmap = new byte[((count + 31) / 32) * 4];
+        var boxes = new List<byte>();
+        var originalGlyphs = new List<byte>();
+        var offsets = new List<int> { 0 };
+        for (int glyph = 0; glyph < count; glyph++)
+        {
+            if (children[glyph].Length == 0)
+            {
+                contours.AddRange(Words(1));
+                pointCounts.AddRange(Encoded255(leafPoints));
+                flags.AddRange(new byte[leafPoints]);
+                glyphData.AddRange(new byte[leafPoints + 1]);
+                originalGlyphs.AddRange(Simple(Enumerable.Repeat(((short)0, (short)0, true), leafPoints).ToList(), [], false));
+            }
+            else
+            {
+                contours.AddRange(Words(-1));
+                bitmap[glyph / 8] |= (byte)(0x80 >> (glyph % 8));
+                boxes.AddRange(Words(0, 0, 0, 0));
+                var raw = new List<byte>();
+                for (int i = 0; i < children[glyph].Length; i++)
+                {
+                    int componentFlags = 2 | (i + 1 < children[glyph].Length ? 32 : 0);
+                    raw.AddRange([.. Words(componentFlags, children[glyph][i]), 0, 0]);
+                }
+                components.AddRange(raw);
+                originalGlyphs.AddRange([.. Words(-1, 0, 0, 0, 0), .. raw]);
+            }
+            offsets.Add(originalGlyphs.Count / 2);
+        }
+        byte[][] streams = [
+            contours.ToArray(), pointCounts.ToArray(), flags.ToArray(), glyphData.ToArray(),
+            components.ToArray(), [.. bitmap, .. boxes], []
+        ];
+        var tables = BaseTables(count, false);
+        tables.Add(new("glyf", originalGlyphs.ToArray(), GlyfTransform(count, false, streams)));
+        tables.Add(new("loca", Words(offsets.ToArray()), []));
+        return tables;
+    }
+
     private static Table[] NullFont()
     {
         var tables = BaseTables(2, false);
@@ -459,6 +675,7 @@ public class Woff2ConverterTests
 
     private static int EncodeAxis(int delta, List<byte> bytes, int shortBit, int positiveBit, bool forceShortZeros)
     {
+        delta = unchecked((short)delta);
         if (delta == 0)
         {
             if (!forceShortZeros) return positiveBit;
