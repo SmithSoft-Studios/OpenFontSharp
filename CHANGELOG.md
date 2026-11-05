@@ -23,7 +23,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
 ### Fixed
-- CFF1 reading now accepts CID-keyed FDSelect format 0, converting its per-glyph Font DICT selectors to ranges and rejecting truncated or invalid selectors as `InvalidDataException`.
+- CFF1 reading now accepts CID-keyed FDSelect format 0, converting its per-glyph Font DICT selectors to ranges and rejecting invalid Font DICT references as `InvalidDataException`.
 - GPOS PairPos lookups with multiple subtables now stop at the first matching subtable for each glyph pair, instead of accumulating duplicate positioning adjustments (verified against HarfBuzz on Shantell Sans).
 - CBLC/CBDT and EBLC/EBDT bitmap lookup is keyed by glyph ID. The previous reader returned the bitmap of a different glyph (checked with Noto Color Emoji 2.051: U+1F600 returned the sweat-smile emoji and U+1F355 a bowl of rice); `Typeface.GlyphCount` now follows `maxp.numGlyphs` for these fonts.
 - Bitmap-only EBLC/EBDT and CBLC/CBDT reading supports index subtable formats 1–5, sparse glyph IDs and shared metrics instead of unconditional or placeholder throws. Bitmap counts, offsets and image lengths are bounded; unsupported image formats and vertical layouts report specific `OpenFontNotSupportedException` messages. Rendering, composite EBDT images (8/9), and strike selection remain out of scope.

@@ -68,6 +68,20 @@ public class RealFontGposShapingTests
         result.YOffsets.Should().Equal(0, 0);
     }
 
+    /// <summary>Expected Shantell Sans PairPos format 2 values were generated with GSUB disabled in HarfBuzz 0.57.0.</summary>
+    [Fact]
+    public void GposPairPositionFormat2MatchesHarfBuzzReference()
+    {
+        var result = BasicLatinShaper.Shape(
+            Load("TTF", "Shantell_Sans", "static", "ShantellSans-Regular.ttf"),
+            "\"\"", new ShapingOptions { EnableGposPositioning = true });
+
+        result.GlyphIds.Should().Equal(728, 728);
+        result.Advances.Should().Equal(428, 445);
+        result.XOffsets.Should().Equal(0, 0);
+        result.YOffsets.Should().Equal(0, 0);
+    }
+
     /// <summary>Expected glyph positions were generated with HarfBuzz via uharfbuzz 0.57.0.</summary>
     [Theory]
     [MemberData(nameof(HarfBuzzMarkReferences))]
