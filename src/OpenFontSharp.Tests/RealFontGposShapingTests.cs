@@ -122,6 +122,6 @@ public class RealFontGposShapingTests
         var defaultResult = BasicLatinShaper.Shape(font, "AV");
         var explicitOff = BasicLatinShaper.Shape(font, "AV", new ShapingOptions());
 
-        defaultResult.Advances.Should().Equal(explicitOff.Advances);
+        defaultResult.Advances.Should().Equal(explicitOff.Advances, name);
     }
 }
