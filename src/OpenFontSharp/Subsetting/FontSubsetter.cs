@@ -6,18 +6,24 @@ namespace OpenFontSharp.Subsetting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The subset copies glyph records verbatim from the source font. Tables that describe
+/// The default subset path copies glyph records verbatim from the source font. Tables that describe
 /// the font as a whole (head, hhea, OS/2, name) are copied from the source and patched
 /// where the subset changes them, rather than synthesised, so nothing the original
 /// declared — units per em, licensing bits, style — is silently altered.
 /// </para>
 /// <para>
-/// Supported inputs: TrueType outlines (including variable fonts, which are reduced to
-/// their default instance), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0
+/// Supported inputs: TrueType outlines (including variable fonts, whose default outlines
+/// are used unless explicit axis coordinates are supplied), name-keyed or CID-keyed CFF outlines (OpenType 'OTTO'), WOFF 1.0/2.0
 /// wrapping either, and one font of a collection via
 /// <see cref="Subset(byte[], int, ISet{ushort})"/>. Anything else throws
 /// <see cref="NotSupportedException"/>: a subsetter that cannot copy outlines must not
 /// hand back a font that merely looks valid.
+/// </para>
+/// <para>
+/// The <see cref="Subset(byte[], ISet{ushort}, IReadOnlyDictionary{string, float}, bool)"/>
+/// overload first instantiates TrueType variable outlines, horizontal metrics and CVT
+/// values at the supplied axis coordinates, then uses the same subset path. It produces
+/// a static font without variation tables even when every glyph is retained.
 /// </para>
 /// </remarks>
 public static class FontSubsetter
@@ -41,6 +47,33 @@ public static class FontSubsetter
     /// <exception cref="InvalidDataException">The WOFF2 input is malformed.</exception>
     public static SubsetResult Subset(byte[] fontData, ISet<ushort> usedGlyphIds)
         => Subset(fontData, usedGlyphIds, includeUnicodeCmap: false);
+
+    /// <summary>Instantiates a TrueType variable font at design-space axis coordinates, then subsets it.</summary>
+    /// <param name="fontData">Original standalone sfnt or WOFF1/WOFF2 bytes, which are not modified.</param>
+    /// <param name="usedGlyphIds">Glyph IDs from the original font.</param>
+    /// <param name="axisCoordinates">Axis tags and finite design-space values. Omitted axes use their defaults; values are clamped to the axis range.</param>
+    /// <param name="includeUnicodeCmap">Whether a reduced subset retains Unicode character mappings.</param>
+    /// <returns>A static font and old-to-new glyph ID map; an empty map means IDs are unchanged.</returns>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    /// <exception cref="ArgumentException">An axis tag is unknown or a coordinate is not finite.</exception>
+    /// <exception cref="InvalidDataException">A variation table or glyph is malformed.</exception>
+    /// <exception cref="NotSupportedException">The input is not a supported TrueType outline font.</exception>
+    public static SubsetResult Subset(
+        byte[] fontData, ISet<ushort> usedGlyphIds,
+        IReadOnlyDictionary<string, float> axisCoordinates, bool includeUnicodeCmap = false)
+    {
+        ArgumentNullException.ThrowIfNull(fontData);
+        ArgumentNullException.ThrowIfNull(usedGlyphIds);
+        ArgumentNullException.ThrowIfNull(axisCoordinates);
+        byte[] sfnt = SfntContainers.Detect(fontData) switch
+        {
+            FontContainerFormat.TrueType => fontData,
+            FontContainerFormat.Woff => SfntContainers.DecodeWoff(fontData),
+            FontContainerFormat.Woff2 => WebFont.Woff2Converter.ToSfnt(fontData),
+            _ => throw new NotSupportedException("Axis instantiation requires standalone TrueType outlines.")
+        };
+        return Subset(VariableFontInstancer.Instantiate(sfnt, axisCoordinates), usedGlyphIds, includeUnicodeCmap);
+    }
 
     /// <summary>Subsets a font, optionally retaining Unicode character mappings.</summary>
     /// <param name="fontData">The original standalone font or WOFF1/WOFF2 bytes.</param>

@@ -155,19 +155,19 @@ Woff2DefaultBrotliDecompressFunc.DecompressHandler = (compressed, output) =>
 `Woff2Converter.ToSfnt(woff2Bytes)` returns standalone TTF/OTF bytes, reconstructing transformed `glyf`, `loca`, and `hmtx` tables per the [W3C WOFF2 Recommendation](https://www.w3.org/TR/WOFF2/). An optional second argument supplies a per-call Brotli decoder instead of the default hook. No Brotli package is required by the library; without a hook it throws `NotSupportedException`. WOFF2 collections are not supported. The byte-based WOFF1 subsetter uses built-in .NET zlib decompression and does not need the reader hook.
 
 ## Font subsetting
-`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, glyph outlines are copied verbatim, never re-encoded by the subsetter.
+`OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, glyph outlines are copied verbatim unless axis coordinates are supplied for TrueType variable-font instantiation.
 
 ```csharp
 var result = FontSubsetter.Subset(fontBytes, usedGlyphIds);        // or Subset(typeface, usedGlyphIds)
 var member = FontSubsetter.Subset(ttcBytes, fontIndex, usedGlyphIds); // one font of a collection
 ```
 
-The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. When every glyph is requested the font is returned whole and `GlyphIdMap` is empty. An empty map means glyph IDs are unchanged, not that the output has no glyphs. Certain recognized sfnt inputs without usable outline tables are also returned whole; check the result rather than assuming a size reduction. A format that cannot be subset throws `NotSupportedException`; the subsetter never invents missing outlines.
+The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Without explicit instantiation, when every glyph is requested the font is returned whole and `GlyphIdMap` is empty. An empty map means glyph IDs are unchanged, not that the output has no glyphs. Certain recognized sfnt inputs without usable outline tables are also returned whole; check the result rather than assuming a size reduction. A format that cannot be subset throws `NotSupportedException`; the subsetter never invents missing outlines.
 
 | Input | Test font | Result |
 |---|---|---|
 | TrueType (`.ttf`) | Roboto, Shantell Sans (static) | Supported |
-| TrueType variable font | Shantell Sans (variable) | Supported: subset to the default instance. `fvar`, `gvar`, `HVAR` and the other variation tables are dropped |
+| TrueType variable font | Shantell Sans (default); synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
 | CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
 | CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Throws `NotSupportedException` |
@@ -185,6 +185,15 @@ What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`c
 **Default subsets are for glyph-addressed embedding, not drop-in fonts for ordinary Unicode text rendering.** Map and shape text against the original font first, then remap glyph IDs for the subset. `FontSubsetter` itself resolves composite dependencies from the original bytes; `GlyphCollector` only collects the initial IDs from the parsed font.
 
 To retain Unicode lookup, use `FontSubsetter.Subset(fontBytes, usedGlyphIds, includeUnicodeCmap: true)` (also available for a `Typeface` or a collection member). All Unicode scalar mappings to retained glyphs, including aliases and composite dependencies, are renumbered from the source cmap. The output contains Windows format 4 (BMP) and format 12 (full Unicode, including BMP) subtables. Layout/kerning tables and Unicode variation sequences are still omitted, so this is not a full shaping-preserving font subset. Fonts returned whole keep their original cmap. See [cmap compatibility limits](docs/COMPATIBILITY.md#subset-unicode-cmap).
+
+### Instantiate a variable TrueType font
+
+```csharp
+var instance = FontSubsetter.Subset(fontBytes, usedGlyphIds,
+    new Dictionary<string, float> { ["wght"] = 700 });
+```
+
+Axis tags and values are in user coordinates, as declared by `fvar`. Omitted axes use their defaults; values outside an axis range are clamped. Normalization uses `fvar` and `avar`. The static output applies `gvar` outline deltas (including IUP), `HVAR` advance deltas or the `gvar` phantom-point fallback, and `cvar` control-value deltas. Instantiation also occurs when all glyphs are retained; an empty ID map still only means that glyph IDs are unchanged. Existing overloads retain their default-instance behavior. See [variable-font compatibility](docs/COMPATIBILITY.md#truetype-variable-instances) for scope and verification.
 
 ### Subset simple BMP text and create a PDF ToUnicode map
 

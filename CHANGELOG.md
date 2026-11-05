@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
+- Opt-in axis-coordinate overload for `FontSubsetter.Subset` instantiates variable TrueType fonts using `fvar`/`avar`, `gvar` with IUP, `HVAR` advances (or phantom-point fallback), and `cvar`, clamping user values to each axis range and producing static subsets.
 - Opt-in `includeUnicodeCmap` overloads for `FontSubsetter.Subset` write format 4 (BMP) and format 12 (full Unicode) cmaps mapping retained characters to renumbered glyph IDs. Existing overloads and default output are unchanged; layout tables and variation sequences remain omitted.
 
 ## [1.3.0]

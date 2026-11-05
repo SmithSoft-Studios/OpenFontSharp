@@ -101,6 +101,16 @@ The builder selects a source Unicode subtable, preferring full repertoire over B
 
 Synthetic tests re-read BMP and supplementary mappings through `OpenFontReader`, check both output subtables independently, non-monotonic remapping, aliases, dense BMP arrays, malformed input, and byte-identical default output. CFF and collection paths are also checked. External renderer interoperability is untested. Layout and kerning tables remain dropped.
 
+## TrueType variable instances
+
+The byte-based `FontSubsetter.Subset` overload accepting `IReadOnlyDictionary<string, float> axisCoordinates` produces a static TrueType instance before subsetting. Keys are four-character `fvar` axis tags and values are user coordinates. Unspecified axes use their defaults; out-of-range values clamp to the axis range before `fvar` normalization and `avar` version 1.0 segment mapping. Unknown axes and non-finite coordinates are rejected. Existing overloads continue to use default outlines without applying a requested instance.
+
+Instantiation applies `gvar` deltas, interpolates untouched simple-glyph points with IUP, updates horizontal advances using `HVAR` when present (otherwise `gvar` phantom points), and applies `cvar` to the hinting control values. Variation tables are removed even if every glyph is retained. This overload does not instantiate CFF2 outlines, apply MVAR global metric changes, or preserve variable layout, colour, or vertical-metric behavior.
+
+Malformed variation data throws `InvalidDataException`. The instancer rejects overlapping tables, caps input, aggregate table bytes and rebuilt output at 128 MiB, and limits expanded glyph points across the font to 4,194,304. Tuple processing has a shared work budget; cyclic or excessively nested composites are rejected. `avar` versions other than 1.0 are unsupported.
+
+Synthetic tests verify known coordinates and advances, IUP, shared and intermediate tuples, composite offsets and inherited metrics, HVAR mappings, cvar and malformed input. Tests also re-read non-default static instances of the existing Shantell Sans fixture, with and without glyph removal. External renderer interoperability and exhaustive real-world variable-font coverage are untested; hinting programs are copied, not executed or rewritten.
+
 ## Other existing limitations
 
 - The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
