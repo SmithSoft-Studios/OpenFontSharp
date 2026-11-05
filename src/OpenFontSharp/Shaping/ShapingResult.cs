@@ -9,4 +9,11 @@ namespace OpenFontSharp.Shaping;
 public record ShapingResult(
     ushort[] GlyphIds,
     int[] Advances,
-    bool RequiresComplexShaping);
+    bool RequiresComplexShaping)
+{
+    /// <summary>Horizontal offsets per glyph in font design units.</summary>
+    public int[] XOffsets { get; init; } = Array.Empty<int>();
+
+    /// <summary>Vertical offsets per glyph in font design units.</summary>
+    public int[] YOffsets { get; init; } = Array.Empty<int>();
+}

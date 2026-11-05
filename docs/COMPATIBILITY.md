@@ -95,7 +95,7 @@ Colour/bitmap rendering and colour/bitmap-aware subsetting remain out of scope. 
 
 ## Other existing limitations
 
-- The basic shaper is not a complex-script, bidi, or supplementary-plane shaping engine and does not apply GPOS pair adjustments.
+- The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
 - CFF1 subsetting supports name-keyed and CID-keyed fonts (FDSelect formats 0 and 3); CFF2 and Type 1 charstrings are not subset.

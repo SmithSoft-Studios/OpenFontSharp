@@ -202,24 +202,34 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             foreach (ushort lookupTableOffset in lookupTableOffsets)
             {
                 long lookupTablePos = lookupListBeginAt + lookupTableOffset;
-                reader.BaseStream.Seek(lookupTablePos, SeekOrigin.Begin);
+                try
+                {
+                    reader.BaseStream.Seek(lookupTablePos, SeekOrigin.Begin);
 
-                ushort lookupType = reader.ReadUInt16(); //Each Lookup table may contain only one type of information (LookupType)
-                ushort lookupFlags = reader.ReadUInt16();
-                ushort subTableCount = reader.ReadUInt16();
+                    ushort lookupType = reader.ReadUInt16(); //Each Lookup table may contain only one type of information (LookupType)
+                    ushort lookupFlags = reader.ReadUInt16();
+                    ushort subTableCount = reader.ReadUInt16();
 
-                //Each LookupType is defined with one or more subtables, and each subtable definition provides a different representation format
-                ushort[] subTableOffsets = Utils.ReadUInt16Array(reader, subTableCount);
+                    //Each LookupType is defined with one or more subtables, and each subtable definition provides a different representation format
+                    ushort[] subTableOffsets = Utils.ReadUInt16Array(reader, subTableCount);
 
-                ushort markFilteringSet =
-                    ((lookupFlags & 0x0010) == 0x0010) ? reader.ReadUInt16() : (ushort)0;
+                    ushort markFilteringSet =
+                        ((lookupFlags & 0x0010) == 0x0010) ? reader.ReadUInt16() : (ushort)0;
 
-                ReadLookupTable(reader,
-                        lookupTablePos,
-                        lookupType,
-                        lookupFlags,
-                        subTableOffsets, //Array of offsets to SubTables-from beginning of Lookup table
-                        markFilteringSet);
+                    ReadLookupTable(reader,
+                            lookupTablePos,
+                            lookupType,
+                            lookupFlags,
+                            subTableOffsets, //Array of offsets to SubTables-from beginning of Lookup table
+                            markFilteringSet);
+                }
+                catch (Exception ex) when (ex is IndexOutOfRangeException
+                    or IOException
+                    or ArgumentOutOfRangeException
+                    or OverflowException)
+                {
+                    // Skip malformed lookup records rather than exposing parser indexing failures.
+                }
             }
         }
 

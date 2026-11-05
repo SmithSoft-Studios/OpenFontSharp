@@ -21,7 +21,7 @@ The NuGet package includes XML API documentation for IntelliSense. See [compatib
 | Character-to-glyph mapping and outline access | `Typeface`, `Glyph`, `IGlyphTranslator` | Inspecting font coverage or feeding outlines to your own drawing backend |
 | Consolidated embedding metrics | `FontLoader`, `FontInfo` | Building PDF font descriptors and glyph-width arrays |
 | Unshaped advance measurement | `TextMeasurer.MeasureWidth(Typeface, ...)` | Estimating simple text widths in points or pixels |
-| Basic glyph substitution and legacy kerning | `BasicLatinShaper` | Simple Latin text in a document pipeline |
+| Basic glyph substitution and optional GPOS positioning | `BasicLatinShaper` | Simple Latin text in a document pipeline |
 | Glyph subsetting and ID remapping | `FontSubsetter` | Reducing embedded font size for glyph-addressed PDF fonts |
 | ToUnicode CMap generation | `ToUnicodeCMapBuilder` | Mapping two-byte PDF character IDs to Unicode scalar values, including supplementary planes |
 | Trim and restore | `TypefaceExtensions.TrimDown` / `RestoreUp` | Keeping metrics while temporarily unloading outlines |
@@ -85,7 +85,9 @@ if (shaped.RequiresComplexShaping)
 double shapedWidth = shaped.Advances.Sum(a => (double)a) * 12 / typeface.UnitsPerEm;
 ```
 
-The basic shaper applies available GSUB lookups through its glyph-list adapter and legacy `kern` adjustments. It does **not** currently apply GPOS pair adjustments, despite exposing the parsed GPOS tables. It works on UTF-16 characters rather than Unicode runes and is not suitable for supplementary-plane text, bidi layout, or complex scripts. The complex-shaping flag is a warning, not a guarantee that every unflagged string is fully shaped. Shaping does not return source clusters, so ligatures need an application-provided Unicode mapping when embedding them.
+By default, the basic shaper applies available GSUB lookups through its glyph-list adapter and legacy `kern` adjustments; this preserves the existing shaping behavior. To opt in to GPOS pair kerning and Latin mark placement, pass `new ShapingOptions { EnableGposPositioning = true }` to the overload. It applies GPOS PairPos formats 1 and 2 referenced by the `kern` feature, and MarkBasePos lookups referenced by `mark`. When a supported GPOS `kern` lookup is present, it takes precedence over the legacy `kern` table. `ShapingResult.XOffsets` and `YOffsets` contain the per-glyph placement adjustments in design units.
+
+The basic shaper works on UTF-16 characters rather than Unicode runes and is not suitable for supplementary-plane text, bidirectional layout, complex scripts, or Indic reordering. The complex-shaping flag is a warning, not a guarantee that every unflagged string is fully shaped. Shaping does not return source clusters, so ligatures need an application-provided Unicode mapping when embedding them.
 
 ### Optional outlines and trimming
 

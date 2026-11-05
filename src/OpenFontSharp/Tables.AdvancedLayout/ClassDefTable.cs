@@ -171,7 +171,7 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                         ushort[] classValueArray = this.classValueArray
                             ?? throw new InvalidOperationException("The class definition has not been parsed.");
                         if (glyphIndex >= startGlyph &&
-                            glyphIndex < classValueArray.Length)
+                            glyphIndex - startGlyph < classValueArray.Length)
                         {
                             return classValueArray[glyphIndex - startGlyph];
                         }

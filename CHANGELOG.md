@@ -5,6 +5,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
+- GPOS positioning through the basic shaper also applies lookups wrapped in extension lookups (type 9), as large fonts use; checked on Roboto and Shantell Sans.
+- Opt-in GPOS PairPos format 1/2 kerning and MarkBasePos positioning in `BasicLatinShaper`, with per-glyph placement offsets. The default shaping behavior is unchanged.
 - Standalone WOFF2-to-sfnt conversion via `Woff2Converter.ToSfnt`, including transformed TrueType `glyf`/`loca` and `hmtx`, bounded decoding, table checksums, and `head.checkSumAdjustment`. Brotli remains host-supplied; WOFF2 collections are not supported.
 - CID-keyed CFF1 subsetting retains the CIDs, remaps FDSelect formats 0/3, and keeps only the Font DICTs used by retained glyphs; subroutines are kept whole.
 - `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.

@@ -3,11 +3,14 @@ namespace OpenFontSharp.Shaping;
 /// <summary>
 /// Basic text shaper for Latin, Cyrillic, and Greek scripts.
 /// Performs UTF-16 character cmap lookup, available GSUB substitutions,
-/// and legacy kern-table adjustments. GPOS positioning is not applied.
+/// and legacy kern-table adjustments by default. GPOS can be enabled explicitly.
 /// Does NOT handle complex scripts (Arabic, Devanagari, CJK, etc.).
 /// </summary>
 public static class BasicLatinShaper
 {
+    private const uint KernFeatureTag = 0x6B65726E;
+    private const uint MarkFeatureTag = 0x6D61726B;
+
     /// <summary>
     /// Shapes text using the given font, returning glyph IDs and advances.
     /// If the text contains complex scripts, sets RequiresComplexShaping = true
@@ -17,8 +20,20 @@ public static class BasicLatinShaper
     /// <param name="text">The UTF-16 text to shape.</param>
     /// <returns>Glyph IDs, advances in font design units, and a complex-shaping warning flag.</returns>
     /// <remarks>Does not provide bidi layout, supplementary-plane mapping, or source clusters for ligatures.</remarks>
-    public static ShapingResult Shape(Typeface typeface, string text)
+    public static ShapingResult Shape(Typeface typeface, string text) =>
+        Shape(typeface, text, new ShapingOptions());
+
+    /// <summary>
+    /// Shapes text with optional GPOS positioning for the 'kern' and 'mark' features.
+    /// Complex scripts, bidirectional layout, and Indic reordering remain out of scope.
+    /// </summary>
+    /// <param name="typeface">The original parsed font, before subsetting.</param>
+    /// <param name="text">The UTF-16 text to shape.</param>
+    /// <param name="options">Options controlling optional GPOS positioning.</param>
+    /// <returns>Glyph IDs, advances and offsets in font design units, and a complex-shaping warning flag.</returns>
+    public static ShapingResult Shape(Typeface typeface, string text, ShapingOptions options)
     {
+        ArgumentNullException.ThrowIfNull(options);
         if (string.IsNullOrEmpty(text))
             return new ShapingResult([], [], false);
 
@@ -44,16 +59,33 @@ public static class BasicLatinShaper
             advances[i] = typeface.GetAdvanceWidthFromGlyphIndex(glyphIds[i]);
         }
 
-        // Step 4: Apply kerning (kern table, then GPOS format 1)
+        var positionedGlyphs = new PositionedGlyphs(typeface, glyphIds, advances);
+
+        // Step 4: Apply optional GPOS positioning and legacy kerning.
         if (!needsComplex)
         {
-            ApplyKerning(typeface, glyphIds, advances);
+            if (options.EnableGposPositioning)
+            {
+                bool hasGposKern = ApplyGposFeature(typeface, positionedGlyphs, KernFeatureTag, 2);
+                if (!hasGposKern)
+                    ApplyLegacyKerning(typeface, glyphIds, advances);
+
+                ApplyGposFeature(typeface, positionedGlyphs, MarkFeatureTag, 4);
+            }
+            else
+            {
+                ApplyLegacyKerning(typeface, glyphIds, advances);
+            }
         }
 
         return new ShapingResult(
             glyphIds.ToArray(),
             advances,
-            needsComplex);
+            needsComplex)
+        {
+            XOffsets = positionedGlyphs.XOffsets,
+            YOffsets = positionedGlyphs.YOffsets
+        };
     }
 
     private const uint LigaFeatureTag = 0x6C696761; // 'liga'
@@ -121,10 +153,9 @@ public static class BasicLatinShaper
     }
 
     /// <summary>
-    /// Applies kerning adjustments to the advance widths.
-    /// Checks GPOS pair adjustment first (if available), then falls back to kern table.
+    /// Applies legacy kern-table adjustments to the advance widths.
     /// </summary>
-    private static void ApplyKerning(Typeface typeface, List<ushort> glyphIds, int[] advances)
+    private static void ApplyLegacyKerning(Typeface typeface, List<ushort> glyphIds, int[] advances)
     {
         if (typeface.KernTable == null) return; // No kerning data available
 
@@ -139,6 +170,49 @@ public static class BasicLatinShaper
                 advances[i] += kernValue;
             }
         }
+    }
+
+    private static bool ApplyGposFeature(
+        Typeface typeface,
+        PositionedGlyphs glyphs,
+        uint featureTag,
+        ushort lookupType)
+    {
+        var gpos = typeface.GPOSTable;
+        var featureTables = gpos?.FeatureList?.featureTables;
+        if (gpos == null || featureTables == null)
+            return false;
+
+        var lookupIndices = new HashSet<ushort>();
+        foreach (var feature in featureTables)
+        {
+            if (feature.FeatureTag == featureTag)
+            {
+                foreach (ushort index in feature.LookupListIndices)
+                    lookupIndices.Add(index);
+            }
+        }
+
+        bool appliedFeature = false;
+        for (int i = 0; i < gpos.LookupList.Count; i++)
+        {
+            if (i > ushort.MaxValue || !lookupIndices.Contains((ushort)i))
+                continue;
+
+            var lookup = gpos.LookupList[i];
+            // Type 9 is an extension lookup: the reader already resolved it to the wrapped subtables, so large
+            // fonts that wrap their kerning and mark lookups in extensions are handled too.
+            if ((lookup.LookupType != lookupType && lookup.LookupType != 9) ||
+                !lookup.SubTables.Any(subTable => subTable is not Tables.AdvancedLayout.GPOS.UnImplementedLookupSubTable))
+            {
+                continue;
+            }
+
+            lookup.DoGlyphPosition(glyphs, 0, glyphs.Count);
+            appliedFeature = true;
+        }
+
+        return appliedFeature;
     }
 
     /// <summary>
@@ -174,5 +248,65 @@ public static class BasicLatinShaper
             _glyphs.RemoveAt(index);
             _glyphs.InsertRange(index, newGlyphIndices);
         }
+    }
+
+    private sealed class PositionedGlyphs : IGlyphPositions
+    {
+        private readonly Typeface _typeface;
+        private readonly List<ushort> _glyphIds;
+        private readonly int[] _advances;
+
+        public PositionedGlyphs(Typeface typeface, List<ushort> glyphIds, int[] advances)
+        {
+            _typeface = typeface;
+            _glyphIds = glyphIds;
+            _advances = advances;
+            XOffsets = new int[glyphIds.Count];
+            YOffsets = new int[glyphIds.Count];
+        }
+
+        public int[] XOffsets { get; }
+        public int[] YOffsets { get; }
+        public int Count => _glyphIds.Count;
+
+        public GlyphClassKind GetGlyphClassKind(int index) =>
+            _typeface.GetGlyph(_glyphIds[index]).GlyphClass;
+
+        public void AppendGlyphOffset(int index, short appendOffsetX, short appendOffsetY)
+        {
+            XOffsets[index] += appendOffsetX;
+            YOffsets[index] += appendOffsetY;
+        }
+
+        public void AppendGlyphAdvance(int index, short appendAdvX, short appendAdvY) =>
+            _advances[index] += appendAdvX;
+
+        public ushort GetGlyph(int index, out short advW)
+        {
+            advW = ToShort(_advances[index]);
+            return _glyphIds[index];
+        }
+
+        public ushort GetGlyph(
+            int index,
+            out ushort inputOffset,
+            out short offsetX,
+            out short offsetY,
+            out short advW)
+        {
+            inputOffset = (ushort)Math.Min(index, ushort.MaxValue);
+            offsetX = ToShort(XOffsets[index]);
+            offsetY = ToShort(YOffsets[index]);
+            advW = ToShort(_advances[index]);
+            return _glyphIds[index];
+        }
+
+        public void GetOffset(int index, out short offsetX, out short offsetY)
+        {
+            offsetX = ToShort(XOffsets[index]);
+            offsetY = ToShort(YOffsets[index]);
+        }
+
+        private static short ToShort(int value) => (short)Math.Clamp(value, short.MinValue, short.MaxValue);
     }
 }
