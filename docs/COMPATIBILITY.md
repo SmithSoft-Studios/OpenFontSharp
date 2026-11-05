@@ -79,6 +79,6 @@ Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and re
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
 - The ToUnicode helper supports one BMP scalar mapping per CID, not multi-character sequences or supplementary-plane UTF-16 encoding.
-- WOFF2 transformed-outline decoding remains incomplete.
+- WOFF2 subsetting remains unsupported. Although the reader has a transformed-glyph reconstruction path, it does not decode transformed `hmtx` or rebuild a standalone sfnt, and the transformed `loca` handler is a no-op. The subsetter requires raw sfnt tables, so accepting WOFF2 without completing and validating those transformations could produce incorrect outlines or metrics.
 
 See the [README examples](../README.md) for choosing an appropriate workflow. These limitations are documented, not changed by the warning cleanup.
