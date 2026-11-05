@@ -93,21 +93,6 @@ public class SubsetFormatSupportTests
     }
 
     [Fact]
-    public void OpenTypeCff2_ThrowsNotSupported()
-    {
-        // No CFF2 fixture ships with the tests; relabelling the CFF table is enough to
-        // exercise the format check, which happens before any CFF2 data is read.
-        var data = FontFiles.Bytes(FontFiles.GreatVibes);
-        var font = SfntInspector.Parse(data);
-        int record = 12 + (font.Directory.FindIndex(t => t.Tag == "CFF ") * 16);
-        "CFF2"u8.CopyTo(data.AsSpan(record));
-
-        var act = () => FontSubsetter.Subset(data, new HashSet<ushort> { 1, 2, 3 });
-
-        act.Should().Throw<NotSupportedException>().WithMessage("*CFF2*");
-    }
-
-    [Fact]
     public void Collection_WithoutFontIndex_ThrowsNotSupported()
     {
         var act = () => FontSubsetter.Subset(FontFiles.Bytes(FontFiles.RobotoCollection), new HashSet<ushort> { 1, 2, 3 });

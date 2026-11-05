@@ -463,7 +463,7 @@ namespace OpenFontSharp
 
 
             //2.2 Cff font             
-            CFFTable? cff = ticket.HasCff ? rd.Read(new CFFTable()) : null;
+            CFFTable? cff = ticket.HasCff ? rd.Read(new CFFTable()) ?? rd.Read(new CFF2Table()) : null;
 
             bool isPostScriptOutline = false;
             bool isBitmapFont = false;
@@ -577,7 +577,7 @@ namespace OpenFontSharp
 
             //2.2 Cff font
             PostTable? postTable = rd.Read(new PostTable());
-            CFFTable? cff = rd.Read(new CFFTable());
+            CFFTable? cff = rd.Read(new CFFTable()) ?? rd.Read(new CFF2Table());
 
             //additional math table (if available)
             MathTable? mathtable = rd.Read(new MathTable());
