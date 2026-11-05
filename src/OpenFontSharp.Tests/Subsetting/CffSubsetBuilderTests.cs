@@ -84,6 +84,28 @@ public class CffSubsetBuilderTests
     }
 
     [Fact]
+    public void SeacScan_RejectsTruncatedCharstringOperandsAndMasks()
+    {
+        byte[][] malformedCharStrings =
+        [
+            [28],
+            [247],
+            [251],
+            [255],
+            [Int(0), Int(0), 1, 19],
+            [12]
+        ];
+
+        foreach (byte[] charString in malformedCharStrings)
+        {
+            var act = () => CffSubsetBuilder.Build(MinimalCff(charString), [0, 1]);
+            var exception = Record.Exception(act);
+            exception.Should().BeOfType<NotSupportedException>();
+            exception!.InnerException.Should().BeOfType<InvalidDataException>();
+        }
+    }
+
+    [Fact]
     public void CidKeyedFont_RetainsUsedFontDictsAndRewritesFormat3FdSelectAndCharset()
     {
         var source = MinimalCidCff(fdSelectFormat: 3);

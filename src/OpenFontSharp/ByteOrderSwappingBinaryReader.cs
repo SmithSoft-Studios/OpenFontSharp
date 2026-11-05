@@ -45,7 +45,7 @@ namespace OpenFontSharp
         /// <returns></returns>
         private byte[] RR(int count)
         {
-            base.Read(_reusable_buffer, 0, count);
+            BaseStream.ReadExactly(_reusable_buffer, 0, count);
             Array.Reverse(_reusable_buffer);
             return _reusable_buffer;
         }

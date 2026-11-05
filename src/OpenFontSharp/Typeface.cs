@@ -49,7 +49,7 @@ namespace OpenFontSharp
         internal bool _useTypographicMertic;
 #if DEBUG 
         static int s_dbugTotalId;
-        public readonly int dbugId = ++s_dbugTotalId;
+        public readonly int dbugId = System.Threading.Interlocked.Increment(ref s_dbugTotalId);
 #endif
 
         internal Typeface()

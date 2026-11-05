@@ -52,6 +52,8 @@ The reader closes the supplied stream. Use a new readable, seekable stream for e
 
 `TextMeasurer.MeasureWidth(Typeface, ...)` maps Unicode runes but does not apply kerning or shaping. Prefer this overload for real fonts: the legacy `FontInfo` overload indexes its width array directly by UTF-16 character value, not by a `cmap` lookup. `FontInfo.GlyphWidths` produced by `FontLoader` is indexed by glyph ID, so that overload is not a general-purpose measurement path for loaded fonts.
 
+Truncated or malformed font data is reported as `InvalidDataException`. The reader bounds collection and cmap counts before allocation; SVG documents are limited to 64 MiB. Unsupported GSUB operations report `OpenFontNotSupportedException`.
+
 ### Preview a font collection and select a member
 
 ```csharp

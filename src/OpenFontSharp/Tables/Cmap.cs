@@ -378,18 +378,19 @@ namespace OpenFontSharp.Tables
             //needs to be a super set of the content in the format 4 subtable.
             //The format 4 subtable needs to be in the cmap table to enable backward compatibility needs.
 
+            long subtableStart = input.BaseStream.Position - sizeof(ushort);
             ushort reserved = input.ReadUInt16();
-#if DEBUG
-            if (reserved != 0) { throw new OpenFontNotSupportedException(); }
-#endif
+            if (reserved != 0) { throw new InvalidDataException("A format 12 cmap reserved field must be zero."); }
 
             uint length = input.ReadUInt32();// Byte length of this subtable(including the header)
             uint language = input.ReadUInt32();
             uint numGroups = input.ReadUInt32();
 
-#if DEBUG
-            if (numGroups > int.MaxValue) { throw new OpenFontNotSupportedException(); }
-#endif
+            if (length < 16 || length > input.BaseStream.Length - subtableStart ||
+                numGroups > (length - 16) / 12 || numGroups > 0x110000)
+            {
+                throw new InvalidDataException("The format 12 cmap group count or length is out of range.");
+            }
             uint[] startCharCodes = new uint[(int)numGroups];
             uint[] endCharCodes = new uint[(int)numGroups];
             uint[] startGlyphIds = new uint[(int)numGroups];

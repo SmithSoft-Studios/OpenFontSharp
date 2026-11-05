@@ -5,6 +5,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
     class SvgTable : TableEntry
     {
         public const string _N = "SVG "; //with 1 whitespace ***
+        private const uint MaxSvgDocumentLength = 64 * 1024 * 1024;
         public override string Name => _N;
         //
         //https://docs.microsoft.com/en-us/typography/opentype/spec/svg
@@ -22,6 +23,12 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
         protected override void ReadContentFrom(BinaryReader reader)
         {
             long svgTableStartAt = reader.BaseStream.Position;
+            long svgTableLength = TableLength;
+            long svgTableEnd = svgTableStartAt + svgTableLength;
+            if (svgTableLength < 12 || svgTableEnd > reader.BaseStream.Length)
+            {
+                throw new InvalidDataException("The SVG table is truncated.");
+            }
             //SVG Main Header
             //Type      Name                Description
             //uint16    version             Table version(starting at 0). Set to 0.
@@ -31,6 +38,10 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
             ushort version = reader.ReadUInt16();
             uint offset32 = reader.ReadUInt32();
             uint reserved = reader.ReadUInt32();
+            if (version != 0 || reserved != 0 || offset32 < 10 || offset32 > svgTableLength - 2)
+            {
+                throw new InvalidDataException("The SVG table header is invalid.");
+            }
             //-------
 
 
@@ -45,6 +56,10 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
             reader.BaseStream.Seek(svgDocIndexStartAt, SeekOrigin.Begin);
             //
             ushort numEntries = reader.ReadUInt16();
+            if (numEntries == 0 || numEntries > (svgTableEnd - reader.BaseStream.Position) / 12)
+            {
+                throw new InvalidDataException("The SVG document index is truncated or empty.");
+            }
             //
             //SVG Document Index Entry
             //Each SVG Document Index Entry specifies a range[startGlyphID, endGlyphID], inclusive,
@@ -72,6 +87,7 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                     svgDocLength = reader.ReadUInt32()
                 };
             }
+            long svgDocumentIndexEnd = reader.BaseStream.Position;
 
             //TODO: review lazy load
             for (int i = 0; i < numEntries; ++i)
@@ -85,7 +101,14 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                     throw new System.NotSupportedException();
                 }
 
-                reader.BaseStream.Seek(svgDocIndexStartAt + entry.svgDocOffset, SeekOrigin.Begin);
+                long svgDocumentStart = svgDocIndexStartAt + entry.svgDocOffset;
+                if (svgDocumentStart < svgDocumentIndexEnd || svgDocumentStart > svgTableEnd ||
+                    entry.svgDocLength > MaxSvgDocumentLength ||
+                    entry.svgDocLength > svgTableEnd - svgDocumentStart)
+                {
+                    throw new InvalidDataException("An SVG document offset or length is out of range.");
+                }
+                reader.BaseStream.Seek(svgDocumentStart, SeekOrigin.Begin);
 
                 if (entry.svgDocLength == 0)
                 {
@@ -96,9 +119,10 @@ namespace OpenFontSharp.Tables.BitmapAndSvgFonts
                 byte[] svgData = reader.ReadBytes((int)entry.svgDocLength);
                 _entries[i].svgBuffer = svgData;
 
-#if DEBUG
-                if (svgData.Length == 0) { throw new OpenFontNotSupportedException(); }
-#endif
+                if (svgData.Length != entry.svgDocLength)
+                {
+                    throw new InvalidDataException("An SVG document extends beyond the SVG table data.");
+                }
 
                 if (svgData[0] == (byte)'<')
                 {

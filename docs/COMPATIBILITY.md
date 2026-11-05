@@ -67,11 +67,19 @@ Avoid adding `!` at all call sites just to silence the new warnings. Check the f
 
 ## Required parser and interpreter state
 
-Some internal members are populated only during table loading or interpreter setup. Nullable backing storage and guarded access express this lifecycle instead of initializing the members to fabricated tables, strings, or arrays. Format-specific operations retain their preconditions and failure paths; guards preserve the prior `NullReferenceException` category for missing required state while providing a diagnostic message.
+Some internal members are populated only during table loading or interpreter setup. Nullable backing storage and guarded access express this lifecycle instead of initializing the members to fabricated tables, strings, or arrays. Format-specific operations retain their preconditions and failure paths; guards on already-loaded API state preserve the prior `NullReferenceException` category while providing a diagnostic message. Missing required tables during font parsing are reported as `InvalidDataException`.
 
 Constructing a low-level table directly does not load it. Likewise, `GetMathGlyphInfo` requires a loaded MATH table, `UnderlinePosition` and non-CFF glyph-name enumeration require a post table, and bitmap reading requires loaded bitmap data. Nullable annotations do not make those operations valid for every format.
 
 Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and related data. `RestoreUp` still attempts restoration only when trimmed; a header mismatch leaves the typeface trimmed. Check the resulting state and use the original font stream and the first restoration ticket.
+
+## Malformed input and parser limits
+
+The reader now requires complete byte-order reads and reports truncated font data and missing required tables as `InvalidDataException`. Format 12 cmap group counts must fit both the declared subtable and the Unicode range. Font-collection previews are limited to 1,024 members, and SVG documents are limited to 64 MiB; malformed counts and document ranges are rejected before allocation. These checks do not claim exhaustive validation of every OpenType table or font.
+
+The unsynchronized `MacPostFormat1` lazy cache is now initialized under a lock and published only after all names are populated. Truncated CFF Type 2 operands and hint masks encountered during `seac` scanning are rejected as malformed data. Unsupported GSUB contextual/reverse-chaining paths now raise `OpenFontNotSupportedException` rather than `NotImplementedException`; the operations remain unsupported.
+
+Regression tests use the bundled Roboto Regular font (Apache-2.0) at 64 truncation offsets and with one byte flipped in each sfnt table. They also cover missing required tables, malformed format 12 cmap fields, truncated and oversized SVG documents, malformed CFF charstrings, unsupported GSUB stubs, and concurrent first use of the Macintosh glyph-name cache. This is a focused regression corpus, not exhaustive fuzzing of every table or font.
 
 ## WOFF2 conversion and subsetting
 

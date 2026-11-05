@@ -32,7 +32,7 @@ namespace OpenFontSharp.Tables
             ushort uStorageOffset = reader.ReadUInt16();
 
             uint offset = this.Header.Offset;
-            for (int j = 0; j <= uNRCount; j++)
+            for (int j = 0; j < uNRCount; j++)
             {
                 var ttRecord = new TT_NAME_RECORD()
                 {

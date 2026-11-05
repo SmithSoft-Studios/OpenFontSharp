@@ -10,6 +10,10 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Opt-in axis-coordinate overload for `FontSubsetter.Subset` instantiates variable TrueType fonts using `fvar`/`avar`, `gvar` with IUP, `HVAR` advances (or phantom-point fallback), and `cvar`, clamping user values to each axis range and producing static subsets.
 - Opt-in `includeUnicodeCmap` overloads for `FontSubsetter.Subset` write format 4 (BMP) and format 12 (full Unicode) cmaps mapping retained characters to renumbered glyph IDs. Existing overloads and default output are unchanged; layout tables and variation sequences remain omitted.
 
+### Fixed
+- `MacPostFormat1` now publishes its standard glyph-name cache only after synchronized initialization; Debug-only `Typeface` IDs increment atomically. Truncated byte-order reads and missing required tables produce `InvalidDataException`; format 12 cmap counts, TTC member counts, and SVG document lengths are validated before allocation, with SVG documents capped at 64 MiB.
+- Truncated Type 2 charstring operands and hint masks are rejected during CFF `seac` scanning. Unsupported GSUB paths now throw `OpenFontNotSupportedException` instead of `NotImplementedException`.
+
 ## [1.3.0]
 
 ### Added

@@ -7,7 +7,8 @@ namespace OpenFontSharp.AdditionalInfo
     {
 
 
-        static string[]? s_stdMacGlyphNames;
+        static readonly object s_initLock = new object();
+        static volatile string[]? s_stdMacGlyphNames;
 
         /// <summary>
         /// Gets the standard Macintosh PostScript glyph names indexed by their standard glyph IDs.
@@ -18,42 +19,45 @@ namespace OpenFontSharp.AdditionalInfo
             string[]? glyphNames = s_stdMacGlyphNames;
             if (glyphNames == null)
             {
-                glyphNames = new string[260];
-                s_stdMacGlyphNames = glyphNames;
-                using (StringReader strReader = new StringReader(orgGlyphNames))
+                lock (s_initLock)
                 {
-                    string[] seps = new string[] { " " };
-
-                    string? line = strReader.ReadLine();
-
-                    while (line != null)
+                    glyphNames = s_stdMacGlyphNames;
+                    if (glyphNames == null)
                     {
-                        line = line.Trim();
-                        if (line != "")
+                        glyphNames = new string[260];
+                        using (StringReader strReader = new StringReader(orgGlyphNames))
                         {
-
-                            string[] key_value = line.Split(seps, System.StringSplitOptions.RemoveEmptyEntries);
-                            if (key_value.Length != 2)
+                            string[] seps = new string[] { " " };
+                            string? line = strReader.ReadLine();
+                            while (line != null)
                             {
-                                throw new System.NotSupportedException();
-                            }
-                            if (int.TryParse(key_value[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int index))
-                            {
-#if DEBUG
-                                if (index < 0 || index > 258)
+                                line = line.Trim();
+                                if (line != "")
                                 {
+                                    string[] key_value = line.Split(seps, System.StringSplitOptions.RemoveEmptyEntries);
+                                    if (key_value.Length != 2)
+                                    {
+                                        throw new System.NotSupportedException();
+                                    }
+                                    if (int.TryParse(key_value[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int index))
+                                    {
+#if DEBUG
+                                        if (index < 0 || index > 258)
+                                        {
 
-                                }
+                                        }
 #endif
-                                glyphNames[index] = key_value[1].Trim();
+                                        glyphNames[index] = key_value[1].Trim();
+                                    }
+                                    else
+                                    {
+                                        throw new System.NotSupportedException();
+                                    }
+                                }
+                                line = strReader.ReadLine();
                             }
-                            else
-                            {
-                                throw new System.NotSupportedException();
-                            }
-
                         }
-                        line = strReader.ReadLine();
+                        s_stdMacGlyphNames = glyphNames;
                     }
                 }
             }
