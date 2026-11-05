@@ -523,10 +523,14 @@ namespace OpenFontSharp
         /// <summary>Gets the color palette table, or null when absent or trimmed.</summary>
         public CPAL? CPALTable { get; private set; }
 
+        /// <summary>Gets the loaded COLR version, or null when absent or trimmed. Version 1 paint graphs are not interpreted.</summary>
+        public ushort? ColorTableVersion => COLRTable?.Version;
+
         /// <summary>Gets the number of loaded CPAL palettes, or zero when absent or trimmed.</summary>
         public int PaletteCount => CPALTable?.PaletteCount ?? 0;
 
         /// <summary>Gets COLR v0 layers in painting order, or an empty list when the glyph has no loaded layers.</summary>
+        /// <remarks>Includes compatible v0 records in COLR v1 tables, but does not interpret v1 paint graphs.</remarks>
         /// <param name="glyphId">The base glyph identifier.</param>
         /// <returns>A read-only list of layer glyphs and palette entry indices; 0xFFFF denotes the foreground colour.</returns>
         public IReadOnlyList<ColorLayer> GetColorLayers(ushort glyphId) =>

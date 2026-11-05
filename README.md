@@ -119,9 +119,11 @@ Do not substitute empty arrays for missing outlines: null distinguishes CFF, bit
 
 ### Colour glyph data (no rendering)
 
-`GetColorLayers(glyphId)` returns read-only COLR v0 layers in back-to-front painting order. Each `ColorLayer` contains a `GlyphId` and `PaletteIndex`; index `0xFFFF` means the application's foreground colour. Missing or trimmed layers return an empty list.
+`GetColorLayers(glyphId)` returns read-only COLR v0 layers in back-to-front painting order, including compatible v0 records in a COLR v1 table. Each `ColorLayer` contains a `GlyphId` and `PaletteIndex`; index `0xFFFF` means the application's foreground colour. Missing or trimmed layers return an empty list.
 
-`PaletteCount` and `GetPalette(index)` expose CPAL v0/v1 palettes as read-only `PaletteColor` entries (`Blue`, `Green`, `Red`, `Alpha`, in BGRA order with sRGB colour components). Invalid palette indices, including when palettes are absent or trimmed, throw `ArgumentOutOfRangeException`. CPAL v1 palette labels and type metadata are not exposed. COLR versions other than 0 throw a version-specific `OpenFontNotSupportedException`.
+`PaletteCount` and `GetPalette(index)` expose CPAL v0/v1 palettes as read-only `PaletteColor` entries (`Blue`, `Green`, `Red`, `Alpha`, in BGRA order with sRGB colour components). Invalid palette indices, including when palettes are absent or trimmed, throw `ArgumentOutOfRangeException`. CPAL v1 palette labels and type metadata are not exposed. COLR versions other than 0/1 throw a version-specific `OpenFontNotSupportedException`.
+
+COLR v1 fonts load their supported outlines, metrics and cmap normally. `ColorTableVersion` is the loaded COLR version (`0` or `1`), or `null` when absent or trimmed. Version 1 paint graphs (`BaseGlyphList`, `LayerList`, `ClipList`, `VarIndexMap`, `VarStore`) are not interpreted or rendered; without compatible v0 records, `GetColorLayers` returns an empty list. Ordinary base glyph outlines may themselves be empty; this API does not flatten painted emoji into outlines. Reduced subsets preserve retained ordinary outlines and metrics but drop `COLR` and `CPAL`, as for v0; retaining every glyph returns the original font unchanged, including its colour tables.
 
 Bitmap-only fonts use the first strike through `GetGlyph` and `ReadBitmapContent`; outlines still take priority in hybrid fonts. See [bitmap compatibility and limits](docs/COMPATIBILITY.md#colour-and-bitmap-tables) for supported formats and malformed-data handling. This exposes encoded data and metrics, not a rasteriser.
 

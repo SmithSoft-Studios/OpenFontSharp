@@ -5,6 +5,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
+- `Typeface.ColorTableVersion` reports the loaded COLR version, or null when absent or trimmed.
 - A per-feature [test coverage matrix](docs/TEST-COVERAGE.md), real CID-keyed CFF, GPOS and variable-instance references, Unicode-cmap checks on a real font, and Debug test execution in CI.
 - CFF2 (variable `.otf`) fonts can be read and subset: the default instance is computed (`blend` / `vsindex` applied) and written as static CFF1 inside an `OTTO` font; variation tables are dropped.
 - CFF subsetting handles the deprecated `seac` form of `endchar`: the base and accent glyphs are retained and remapped, and `GlyphIdMap` covers them.
@@ -12,6 +13,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 - Opt-in `includeUnicodeCmap` overloads for `FontSubsetter.Subset` write format 4 (BMP) and format 12 (full Unicode) cmaps mapping retained characters to renumbered glyph IDs. Existing overloads and default output are unchanged; layout tables and variation sequences remain omitted.
 
 ### Fixed
+- Fonts with COLR v1 now load supported outlines and metrics instead of failing. Compatible v0 layers remain available; v1 paint graphs are ignored. Reduced subsets continue to drop COLR/CPAL without flattening colour glyphs. Includes a SIL OFL 1.1 Noto Emoji fixture and malformed-header regression tests.
 - `MacPostFormat1` now publishes its standard glyph-name cache only after synchronized initialization; Debug-only `Typeface` IDs increment atomically. Truncated byte-order reads and missing required tables produce `InvalidDataException`; format 12 cmap counts, TTC member counts, and SVG document lengths are validated before allocation, with SVG documents capped at 64 MiB.
 - Truncated Type 2 charstring operands and hint masks are rejected during CFF `seac` scanning. Unsupported GSUB paths now throw `OpenFontNotSupportedException` instead of `NotImplementedException`.
 
