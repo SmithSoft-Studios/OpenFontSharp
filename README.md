@@ -232,11 +232,14 @@ Respect the font's embedding permissions and license. Subsetting retains OS/2 li
 
 ```shell
 dotnet build src/OpenFontSharp/OpenFontSharp.csproj -c Release --no-incremental
+dotnet test SmithSoftStudios.OpenFontSharp.sln -c Debug
 dotnet test SmithSoftStudios.OpenFontSharp.sln -c Release
 dotnet pack src/OpenFontSharp/OpenFontSharp.csproj -c Release --no-build
 ```
 
 `LibraryQualityTests` performs a fresh Release library build with XML documentation enabled and treats `CS8618` and `CS1591` as errors. Nullable contract tests cover absent tables, CFF versus TrueType outlines, collection previews, and trim/restore behavior. The existing subsetting tests verify output structures and composite dependencies across supported formats.
+
+See the [test coverage matrix](docs/TEST-COVERAGE.md) for per-feature tests, real-font fixtures, independent references, and known evidence gaps.
 
 # License
 

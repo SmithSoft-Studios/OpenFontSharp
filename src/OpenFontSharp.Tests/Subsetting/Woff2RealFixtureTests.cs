@@ -33,6 +33,20 @@ public class Woff2RealFixtureTests
 
         var converted = Read(sfnt);
         var original = Read(ttf);
+
+        var convertedTables = SfntInspector.Parse(sfnt);
+        var originalTables = SfntInspector.Parse(ttf);
+        convertedTables.Directory.Select(table => table.Tag)
+            .Should().Equal(originalTables.Directory.Select(table => table.Tag));
+        foreach (var table in originalTables.Directory)
+        {
+            if (table.Tag is "head" or "glyf" or "loca" or "hmtx")
+                continue;
+
+            convertedTables.Bytes(table.Tag).Should().Equal(
+                originalTables.Bytes(table.Tag), $"fontTools reference table '{table.Tag}'");
+        }
+
         converted.GlyphCount.Should().Be(original.GlyphCount);
         converted.UnitsPerEm.Should().Be(original.UnitsPerEm);
         for (ushort glyph = 0; glyph < original.GlyphCount; glyph++)

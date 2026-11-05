@@ -11,6 +11,7 @@ internal static class FontFiles
     public const string ShantellStatic = "TTF/Shantell_Sans/static/ShantellSans-Medium.ttf";
     public const string ShantellVariable = "TTF/Shantell_Sans/ShantellSans-VariableFont_BNCE,INFM,SPAC,wght.ttf";
     public const string GreatVibes = "OTF/great-vibes/GreatVibes-Regular.otf";
+    public const string CidCff = "OTF/source-han-cid/OpenFontSharp-CID-Reference.otf";
     public const string RobotoCollection = "TTC/Roboto-RegularBold.ttc";
     public const string RobotoWoff = "WOFF/Roboto-Regular.woff";
     public const string GreatVibesWoff = "WOFF/GreatVibes-Regular.woff";

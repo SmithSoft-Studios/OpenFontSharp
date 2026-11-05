@@ -167,6 +167,27 @@ namespace OpenFontSharp.Tables.AdvancedLayout
             /// <param name="len">The number of positions to process.</param>
             public void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
             {
+                if (_subTables.Length > 1 &&
+                    _subTables.All(subTable => subTable is LkSubTableType2Fmt1 or LkSubTableType2Fmt2))
+                {
+                    int lim = Math.Min(inputGlyphs.Count - 1, Math.Max(0, startAt) + Math.Max(0, len));
+                    for (int i = Math.Max(0, startAt); i < lim; ++i)
+                    {
+                        foreach (var subTable in _subTables)
+                        {
+                            bool matched = subTable switch
+                            {
+                                LkSubTableType2Fmt1 format1 => format1.TryDoGlyphPosition(inputGlyphs, i),
+                                LkSubTableType2Fmt2 format2 => format2.TryDoGlyphPosition(inputGlyphs, i),
+                                _ => false
+                            };
+                            if (matched)
+                                break;
+                        }
+                    }
+                    return;
+                }
+
                 foreach (LookupSubTable subTable in SubTables)
                 {
                     subTable.DoGlyphPosition(inputGlyphs, startAt, len);
@@ -320,39 +341,34 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                 public CoverageTable CoverageTable { get => RequireParsed(_coverageTable); set => _coverageTable = value; }
                 public override void DoGlyphPosition(IGlyphPositions inputGlyphs, int startAt, int len)
                 {
-                    //find marker
-                    CoverageTable covTable = this.CoverageTable;
                     int lim = Math.Min(inputGlyphs.Count - 1, Math.Max(0, startAt) + Math.Max(0, len));
                     for (int i = Math.Max(0, startAt); i < lim; ++i)
+                        TryDoGlyphPosition(inputGlyphs, i);
+                }
+
+                public bool TryDoGlyphPosition(IGlyphPositions inputGlyphs, int index)
+                {
+                    int firstGlyphFound = CoverageTable.FindPosition(inputGlyphs.GetGlyph(index, out _));
+                    if (firstGlyphFound < 0 || firstGlyphFound >= _pairSetTables.Length)
+                        return false;
+
+                    PairSetTable pairSet = _pairSetTables[firstGlyphFound];
+                    ushort secondGlyph = inputGlyphs.GetGlyph(index + 1, out _);
+                    if (!pairSet.FindPairSet(secondGlyph, out PairSet foundPairSet))
+                        return false;
+
+                    if (foundPairSet.value1 is { } value1)
                     {
-                        int firstGlyphFound = covTable.FindPosition(inputGlyphs.GetGlyph(i, out short glyph_advW));
-                        if (firstGlyphFound >= 0 && firstGlyphFound < _pairSetTables.Length)
-                        {
-                            //test this with Palatino A-Y sequence
-                            PairSetTable pairSet = _pairSetTables[firstGlyphFound];
-
-                            //check second glyph  
-                            ushort second_glyph_index = inputGlyphs.GetGlyph(i + 1, out short second_glyph_w);
-
-                            if (pairSet.FindPairSet(second_glyph_index, out PairSet foundPairSet))
-                            {
-                                ValueRecord? v1 = foundPairSet.value1;
-                                ValueRecord? v2 = foundPairSet.value2;
-                                //TODO: recheck for vertical writing ... (YAdvance)
-                                if (v1 != null)
-                                {
-                                    inputGlyphs.AppendGlyphOffset(i, v1.XPlacement, v1.YPlacement);
-                                    inputGlyphs.AppendGlyphAdvance(i, v1.XAdvance, 0);
-                                }
-
-                                if (v2 != null)
-                                {
-                                    inputGlyphs.AppendGlyphOffset(i + 1, v2.XPlacement, v2.YPlacement);
-                                    inputGlyphs.AppendGlyphAdvance(i + 1, v2.XAdvance, 0);
-                                }
-                            }
-                        }
+                        inputGlyphs.AppendGlyphOffset(index, value1.XPlacement, value1.YPlacement);
+                        inputGlyphs.AppendGlyphAdvance(index, value1.XAdvance, 0);
                     }
+
+                    if (foundPairSet.value2 is { } value2)
+                    {
+                        inputGlyphs.AppendGlyphOffset(index + 1, value2.XPlacement, value2.YPlacement);
+                        inputGlyphs.AppendGlyphAdvance(index + 1, value2.XAdvance, 0);
+                    }
+                    return true;
                 }
             }
 
@@ -385,38 +401,38 @@ namespace OpenFontSharp.Tables.AdvancedLayout
                     CoverageTable covTable = this.CoverageTable;
                     int lim = Math.Min(inputGlyphs.Count - 1, Math.Max(0, startAt) + Math.Max(0, len));
                     for (int i = Math.Max(0, startAt); i < lim; ++i)
+                        TryDoGlyphPosition(inputGlyphs, i);
+                }
+
+                public bool TryDoGlyphPosition(IGlyphPositions inputGlyphs, int index)
+                {
+                    ushort firstGlyph = inputGlyphs.GetGlyph(index, out _);
+                    if (CoverageTable.FindPosition(firstGlyph) < 0)
+                        return false;
+
+                    ushort secondGlyph = inputGlyphs.GetGlyph(index + 1, out _);
+                    int class1 = Math.Max(0, _class1Def.GetClassValue(firstGlyph));
+                    int class2 = Math.Max(0, _class2Def.GetClassValue(secondGlyph));
+                    if (class1 >= _class1records.Length)
+                        return false;
+
+                    Lk2Class1Record class1Record = _class1records[class1];
+                    if (class2 >= class1Record.class2Records.Length)
+                        return false;
+
+                    Lk2Class2Record pair = class1Record.class2Records[class2];
+                    if (pair.value1 is { } value1)
                     {
-                        ushort glyph1_index = inputGlyphs.GetGlyph(i, out short glyph_advW);
-                        int record1Index = covTable.FindPosition(glyph1_index);
-                        if (record1Index > -1)
-                        {
-                            ushort glyph2_index = inputGlyphs.GetGlyph(i + 1, out short glyph_advW2);
-                            int class1_no = Math.Max(0, _class1Def.GetClassValue(glyph1_index));
-                            int class2_no = Math.Max(0, _class2Def.GetClassValue(glyph2_index));
-                            if (class1_no >= _class1records.Length)
-                                continue;
-
-                            Lk2Class1Record class1Rec = _class1records[class1_no];
-                            if (class2_no >= class1Rec.class2Records.Length)
-                                continue;
-
-                            //TODO: recheck for vertical writing ... (YAdvance)
-                            Lk2Class2Record pair = class1Rec.class2Records[class2_no];
-
-                            if (pair.value1 is { } v1)
-                            {
-                                inputGlyphs.AppendGlyphOffset(i, v1.XPlacement, v1.YPlacement);
-                                inputGlyphs.AppendGlyphAdvance(i, v1.XAdvance, 0);
-                            }
-
-                            if (pair.value2 is { } v2)
-                            {
-                                inputGlyphs.AppendGlyphOffset(i + 1, v2.XPlacement, v2.YPlacement);
-                                inputGlyphs.AppendGlyphAdvance(i + 1, v2.XAdvance, 0);
-                            }
-                        }
-
+                        inputGlyphs.AppendGlyphOffset(index, value1.XPlacement, value1.YPlacement);
+                        inputGlyphs.AppendGlyphAdvance(index, value1.XAdvance, 0);
                     }
+
+                    if (pair.value2 is { } value2)
+                    {
+                        inputGlyphs.AppendGlyphOffset(index + 1, value2.XPlacement, value2.YPlacement);
+                        inputGlyphs.AppendGlyphAdvance(index + 1, value2.XAdvance, 0);
+                    }
+                    return true;
                 }
             }
             readonly struct Lk2Class1Record

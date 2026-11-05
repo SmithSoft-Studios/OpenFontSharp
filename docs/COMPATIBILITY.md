@@ -121,3 +121,13 @@ Synthetic tests verify known coordinates and advances, IUP, shared and intermedi
 `ToUnicodeCMapBuilder` accepts a Unicode scalar or a non-empty scalar sequence per CID, including supplementary-plane characters. Destinations are written as UTF-16BE without a BOM, and valid consecutive mappings may be emitted as `bfrange`; CMap blocks are limited to 100 entries.
 
 See the [README examples](../README.md) for choosing an appropriate workflow. These remaining limitations are not changed by WOFF2 conversion support.
+
+## Test evidence and remaining fixture gaps
+
+The [test coverage matrix](TEST-COVERAGE.md) records the current test methods and distinguishes
+synthetic coverage from real-font and independent-reference evidence. It includes a real
+Source Han CID-keyed CFF subset, HarfBuzz positioning expectations, and a real-font Unicode
+cmap subset test. The repository has no real `seac`, CFF2 variable, COLR/CPAL, or EBLC/CBLC
+fixture; those paths are covered with synthetic data only. The real variable-font fixture set
+does not contain a second font with a different axis layout. CI runs the suite in both Debug
+and Release.
