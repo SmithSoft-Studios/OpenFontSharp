@@ -200,7 +200,9 @@ public static class BasicLatinShaper
                 continue;
 
             var lookup = gpos.LookupList[i];
-            if (lookup.LookupType != lookupType ||
+            // Type 9 is an extension lookup: the reader already resolved it to the wrapped subtables, so large
+            // fonts that wrap their kerning and mark lookups in extensions are handled too.
+            if ((lookup.LookupType != lookupType && lookup.LookupType != 9) ||
                 !lookup.SubTables.Any(subTable => subTable is not Tables.AdvancedLayout.GPOS.UnImplementedLookupSubTable))
             {
                 continue;
