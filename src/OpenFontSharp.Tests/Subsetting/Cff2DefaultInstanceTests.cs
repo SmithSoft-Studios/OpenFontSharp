@@ -92,7 +92,7 @@ public class Cff2DefaultInstanceTests
         byte[][] charStrings =
         [
             [],
-            [Int(20), Int(0), Int(100), Int(-50), Int(0), 15, Int(2), 16, Int(10), Int(0), 21, Int(10), Int(0), 5],
+            [Int(20), Int(0), Int(100), Int(-50), Int(0), 15, Int(2), 16, 21, Int(10), Int(0), 5],
             [Int(40), Int(0), 21, Int(10), Int(0), 5],
         ];
         byte[] charStringsIndex = WriteCff2Index(charStrings);
