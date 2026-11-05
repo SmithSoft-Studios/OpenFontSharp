@@ -29,7 +29,7 @@ byte-identical encodings.
 |---|---|---|
 | Static TrueType bytes and `Typeface` | `SubsetFormatSupportTests.TrueType_IsSubsetFaithfully`, `TrueType_TypefaceOverload_MatchesBytesOverload`; real Roboto and Shantell Sans | `SubsetVerifier` compares all retained outlines, bounds, advances and bearings; `SfntInspector` checks structure/checksums |
 | Variable TrueType default instance | `SubsetFormatSupportTests.VariableTrueType_IsSubsetToItsDefaultInstance`; real Shantell Sans variable (OFL-1.1) | Same-font retained glyph comparison; no independent renderer comparison |
-| Axis-coordinate overload | `VariableSubsetTests.NormalizesClampsMapsAndInterpolates`, `ExistingVariableFixtureProducesReadableStaticInstance`, and the other synthetic variation tests; synthetic plus real Shantell Sans | Synthetic invalid, non-finite, truncated, cyclic and oversized data cases; no second real variable font with a different axis layout is available in the fixture set |
+| Axis-coordinate overload | `VariableSubsetTests.NormalizesClampsMapsAndInterpolates`, `ExistingVariableFixtureProducesReadableStaticInstance`, and the other synthetic variation tests; synthetic plus real Shantell Sans | `RealVariableFontReferenceTests.ShantellAxisInstanceMatchesFontToolsReference` checks glyph count, A/V outlines and advances against fontTools 4.68 at three coordinates; maximum point difference is 1 font unit (0 at two coordinates). No second real variable font with a different axis layout is available |
 | Name-keyed CFF | `SubsetFormatSupportTests.OpenTypeCff_IsSubsetFaithfully`, `OpenTypeCff_KeepsGlyphNames`, `Woff_Cff_IsDecodedAndSubsetFaithfully`; real Great Vibes OTF/WOFF (OFL-1.1) | `SubsetVerifier` checks outlines and metrics; `SfntInspector` checks output structure |
 | CID-keyed CFF | `RealCidCffSubsetTests.SourceHanCidFont_SubsetsOutlinesCidsWidthsAndGlyphCountAgainstFontToolsReference`; real Source Han Sans JP subset (OFL-1.1) | Independent fontTools 4.68 outline, CID, width and glyph-count values are encoded as test expectations |
 | CFF `seac` | `CffSubsetBuilderTests.SeacComposite_RetainsStandardEncodingComponents`, `SeacComposite_SubsetIncludesComponentsInGlyphIdMap`, `SeacComposite_MissingStandardEncodingGlyphCannotBeSubset`, `SeacComposite_NotRetained_DoesNotThrow`, `EndCharWithWidthOnly_IsNotSeac`; synthetic CFF | No real `seac` fixture is included; whether a suitable redistributable real font exists was not established by this audit |
@@ -69,6 +69,6 @@ dotnet test SmithSoftStudios.OpenFontSharp.sln -c Release
 
 The committed Lato positioning subset is derived from Lato 2.015 (OFL-1.1); the
 Source Han CID subset is derived from Source Han Sans JP Regular at the pinned upstream
-revision (OFL-1.1). Each fixture directory records its source, subsetting command and
+revision (OFL-1.1). Each fixture directory records its source, generation details and
 license. The CFF2/`seac`, COLR/CPAL and bitmap gaps above are intentional evidence
 limitations, not claims of interoperability with unsupported real fonts.

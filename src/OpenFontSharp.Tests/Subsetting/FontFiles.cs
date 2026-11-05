@@ -10,6 +10,9 @@ internal static class FontFiles
     public const string RobotoBold = "TTF/Roboto/Roboto-Bold.ttf";
     public const string ShantellStatic = "TTF/Shantell_Sans/static/ShantellSans-Medium.ttf";
     public const string ShantellVariable = "TTF/Shantell_Sans/ShantellSans-VariableFont_BNCE,INFM,SPAC,wght.ttf";
+    public const string ShantellWeight700Reference = "TTF/Shantell_Sans/fontTools-reference/wght-700.ttf";
+    public const string ShantellMixedAxesReference = "TTF/Shantell_Sans/fontTools-reference/mixed-axes.ttf";
+    public const string ShantellMaximumAxesReference = "TTF/Shantell_Sans/fontTools-reference/all-maximums.ttf";
     public const string GreatVibes = "OTF/great-vibes/GreatVibes-Regular.otf";
     public const string CidCff = "OTF/source-han-cid/OpenFontSharp-CID-Reference.otf";
     public const string RobotoCollection = "TTC/Roboto-RegularBold.ttc";

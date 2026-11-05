@@ -5,7 +5,7 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ## [Unreleased]
 
 ### Added
-- A per-feature [test coverage matrix](docs/TEST-COVERAGE.md), real CID-keyed CFF and GPOS reference fixtures, Unicode-cmap checks on a real font, and Debug test execution in CI.
+- A per-feature [test coverage matrix](docs/TEST-COVERAGE.md), real CID-keyed CFF, GPOS and variable-instance references, Unicode-cmap checks on a real font, and Debug test execution in CI.
 - CFF2 (variable `.otf`) fonts can be read and subset: the default instance is computed (`blend` / `vsindex` applied) and written as static CFF1 inside an `OTTO` font; variation tables are dropped.
 - CFF subsetting handles the deprecated `seac` form of `endchar`: the base and accent glyphs are retained and remapped, and `GlyphIdMap` covers them.
 - Opt-in axis-coordinate overload for `FontSubsetter.Subset` instantiates variable TrueType fonts using `fvar`/`avar`, `gvar` with IUP, `HVAR` advances (or phantom-point fallback), and `cvar`, clamping user values to each axis range and producing static subsets.

@@ -109,7 +109,7 @@ Instantiation applies `gvar` deltas, interpolates untouched simple-glyph points 
 
 Malformed variation data throws `InvalidDataException`. The instancer rejects overlapping tables, caps input, aggregate table bytes and rebuilt output at 128 MiB, and limits expanded glyph points across the font to 4,194,304. Tuple processing has a shared work budget; cyclic or excessively nested composites are rejected. `avar` versions other than 1.0 are unsupported.
 
-Synthetic tests verify known coordinates and advances, IUP, shared and intermediate tuples, composite offsets and inherited metrics, HVAR mappings, cvar and malformed input. Tests also re-read non-default static instances of the existing Shantell Sans fixture, with and without glyph removal. External renderer interoperability and exhaustive real-world variable-font coverage are untested; hinting programs are copied, not executed or rewritten.
+Synthetic tests verify known coordinates and advances, IUP, shared and intermediate tuples, composite offsets and inherited metrics, HVAR mappings, cvar and malformed input. Tests also re-read non-default static instances of the existing Shantell Sans fixture, with and without glyph removal. `RealVariableFontReferenceTests` compares glyph count, A/V outlines and advances against fontTools 4.68 at three axis coordinates; the largest point difference is 1 font unit for the mixed-axis instance and 0 for the other two. A second real variable font with a different axis layout and exhaustive renderer interoperability remain untested; hinting programs are copied, not executed or rewritten.
 
 ## Other existing limitations
 
