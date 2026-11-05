@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.
+
 ## [1.2.3]
 
 ### Fixed
