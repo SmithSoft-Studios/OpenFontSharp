@@ -6,6 +6,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ### Added
 - Opt-in GPOS PairPos format 1/2 kerning and MarkBasePos positioning in `BasicLatinShaper`, with per-glyph placement offsets. The default shaping behavior is unchanged.
+### Fixed
+- `BasicLatinShaper` applied every GSUB lookup in the font, not only the `liga` and `clig` ligature features, so ordinary letters were replaced by unrelated alternate glyphs (for example Roboto "Hello" shaped to different glyphs than the cmap). It now applies only lookups of those two features.
 
 ## [1.2.3]
 

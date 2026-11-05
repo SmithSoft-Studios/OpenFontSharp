@@ -88,6 +88,9 @@ public static class BasicLatinShaper
         };
     }
 
+    private const uint LigaFeatureTag = 0x6C696761; // 'liga'
+    private const uint CligFeatureTag = 0x636C6967; // 'clig'
+
     /// <summary>
     /// Applies GSUB format 4 (ligature substitution) lookups for features
     /// like 'liga' and 'clig'. Modifies the glyph list in-place.
@@ -97,9 +100,24 @@ public static class BasicLatinShaper
         var gsub = typeface.GSUBTable;
         if (gsub?.LookupList == null) return;
 
-        // Try all lookups — DoSubstitutionAt returns false for non-matching types
-        foreach (var lookup in gsub.LookupList)
+        // Only lookups that belong to the 'liga' or 'clig' features may run. Applying every lookup in the table
+        // would also run alternate, contextual and locale substitutions and replace ordinary letters.
+        var ligatureLookups = new HashSet<int>();
+        var featureTables = gsub.FeatureList?.featureTables;
+        if (featureTables == null) return;
+        foreach (var feature in featureTables)
         {
+            if (feature.FeatureTag == LigaFeatureTag || feature.FeatureTag == CligFeatureTag)
+            {
+                foreach (ushort index in feature.LookupListIndices)
+                    ligatureLookups.Add(index);
+            }
+        }
+
+        for (int lookupIndex = 0; lookupIndex < gsub.LookupList.Count; lookupIndex++)
+        {
+            if (!ligatureLookups.Contains(lookupIndex)) continue;
+            var lookup = gsub.LookupList[lookupIndex];
             for (int pos = 0; pos < glyphIds.Count - 1; pos++)
             {
                 if (TryApplyLigatureLookup(lookup, glyphIds, pos))
