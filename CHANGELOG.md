@@ -4,6 +4,12 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- Standalone WOFF2-to-sfnt conversion via `Woff2Converter.ToSfnt`, including transformed TrueType `glyf`/`loca` and `hmtx`, bounded decoding, table checksums, and `head.checkSumAdjustment`. Brotli remains host-supplied; WOFF2 collections are not supported.
+
+### Fixed
+- `FontSubsetter.Subset` now accepts standalone WOFF2 bytes and typefaces read from WOFF2. `OpenFontReader` uses the standalone converter for WOFF2 fonts.
+
 ## [1.2.3]
 
 ### Fixed

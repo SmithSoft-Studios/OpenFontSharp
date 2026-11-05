@@ -19,7 +19,7 @@ The remaining 14 compiler warnings predate this cleanup and are not suppressed:
 
 | Diagnostic | Count | Explanation |
 |---|---:|---|
-| `CS0219` | 2 | Unused `useMatrix` and `hasScale` locals in the incomplete WOFF2 outline decoder |
+| `CS0219` | 2 | Unused `useMatrix` and `hasScale` locals in the legacy WOFF2 outline decoder (not used by the standalone converter) |
 | `CS0414` | 1 | The assigned but unused `Glyph._onlyLayoutEssMode` marker |
 | `CS0649` | 11 | Unassigned fields in legacy bitmap glyph-format/component records |
 
@@ -73,12 +73,17 @@ Constructing a low-level table directly does not load it. Likewise, `GetMathGlyp
 
 Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and related data. `RestoreUp` still attempts restoration only when trimmed; a header mismatch leaves the typeface trimmed. Check the resulting state and use the original font stream and the first restoration ticket.
 
-## Existing limitations remain unchanged
+## WOFF2 conversion and subsetting
+
+`Woff2Converter.ToSfnt` converts standalone WOFF2 fonts to plain sfnt bytes, including transformed TrueType `glyf`/`loca` and `hmtx` tables. `FontSubsetter.Subset` and `OpenFontReader` use this converter. Supply `Woff2DefaultBrotliDecompressFunc.DecompressHandler` at startup, or pass a decoder directly to the converter. Without a decoder, conversion throws `NotSupportedException`; malformed data throws `InvalidDataException`. Input, declared sfnt size, and reconstructed output are limited to 128 MiB; decompressed transformed data is limited to 64 MiB. The converter bounds decompression and reconstruction rather than trusting file-declared allocation sizes. WOFF2 collections remain unsupported.
+
+Verification includes synthetic glyph streams, composite glyphs, horizontal metrics, malformed input, and faithful subsetting of the existing Roboto WOFF2 fixture against its TTF counterpart. This is not a claim of exhaustive real-world font coverage.
+
+## Remaining limitations
 
 - The basic shaper is not a complex-script, bidi, or supplementary-plane shaping engine and does not apply GPOS pair adjustments.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
 - The ToUnicode helper supports one BMP scalar mapping per CID, not multi-character sequences or supplementary-plane UTF-16 encoding.
-- WOFF2 transformed-outline decoding remains incomplete.
 
-See the [README examples](../README.md) for choosing an appropriate workflow. These limitations are documented, not changed by the warning cleanup.
+See the [README examples](../README.md) for choosing an appropriate workflow. These remaining limitations are not changed by WOFF2 conversion support.

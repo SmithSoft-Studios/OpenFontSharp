@@ -122,6 +122,8 @@ namespace OpenFontSharp
         /// <returns>A font or collection preview, or null when a web-font decoder cannot read it.</returns>
         /// <exception cref="NullReferenceException">A required metadata table is missing.</exception>
         /// <exception cref="EndOfStreamException">The stream ends before a required value can be read.</exception>
+        /// <exception cref="NotSupportedException">The WOFF2 font is a collection or no Brotli hook is installed.</exception>
+        /// <exception cref="InvalidDataException">The WOFF2 data is malformed.</exception>
         public PreviewFontInfo? ReadPreview(Stream stream)
         {
             //var little = BitConverter.IsLittleEndian;
@@ -152,10 +154,7 @@ namespace OpenFontSharp
                 }
                 else if (KnownFontFiles.IsWoff2(majorVersion, minorVersion))
                 {
-                    //check if we enable woff2 or not
-                    WebFont.Woff2Reader woffReader = new WebFont.Woff2Reader();
-                    input.BaseStream.Position = 0;
-                    return woffReader.ReadPreview(input);
+                    return ReadPreview(new MemoryStream(DecodeWoff2(input.BaseStream)));
                 }
                 else
                 {
@@ -244,6 +243,8 @@ namespace OpenFontSharp
         /// <exception cref="NullReferenceException">A required font table is missing.</exception>
         /// <exception cref="OpenFontNotSupportedException">The outline format is not supported.</exception>
         /// <exception cref="EndOfStreamException">The font data is truncated.</exception>
+        /// <exception cref="NotSupportedException">The WOFF2 font is a collection or no Brotli hook is installed.</exception>
+        /// <exception cref="InvalidDataException">The WOFF2 data is malformed.</exception>
         public Typeface? Read(Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
             Typeface typeface = new Typeface();
@@ -292,6 +293,14 @@ namespace OpenFontSharp
             }
         }
 
+        private static byte[] DecodeWoff2(Stream stream)
+        {
+            stream.Position = 0;
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return WebFont.Woff2Converter.ToSfnt(buffer.ToArray());
+        }
+
         internal bool Read(Typeface typeface, RestoreTicket? ticket, Stream stream, int streamStartOffset = 0, ReadFlags readFlags = ReadFlags.Full)
         {
 
@@ -321,10 +330,7 @@ namespace OpenFontSharp
                 }
                 else if (KnownFontFiles.IsWoff2(majorVersion, minorVersion))
                 {
-                    //check if we enable woff2 or not
-                    WebFont.Woff2Reader woffReader = new WebFont.Woff2Reader();
-                    input.BaseStream.Position = 0;
-                    return woffReader.Read(typeface, input, ticket);
+                    return Read(typeface, ticket, new MemoryStream(DecodeWoff2(input.BaseStream)), 0, readFlags);
                 }
                 //-----------------------------------------------------------------
 
