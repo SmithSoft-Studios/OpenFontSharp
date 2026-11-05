@@ -36,7 +36,10 @@ public class SyntheticGposShapingTests
         typeface.GPOSTable.LookupList[0].SubTables[0].Should().NotBeOfType<OpenFontSharp.Tables.AdvancedLayout.GPOS.UnImplementedLookupSubTable>();
 
         var result = BasicLatinShaper.Shape(typeface, "AV", new ShapingOptions { EnableGposPositioning = true });
+        var defaultResult = BasicLatinShaper.Shape(typeface, "AV");
 
+        defaultResult.Advances.Should().Equal(baseline.Advances);
+        defaultResult.XOffsets.Should().Equal(0, 0);
         result.GlyphIds.Should().Equal(first, second);
         result.XOffsets.Should().Equal(0, 12);
         result.Advances[0].Should().Be(typeface.GetAdvanceWidthFromGlyphIndex(first) - 80);
@@ -96,10 +99,16 @@ public class SyntheticGposShapingTests
 
         ushort first = baselineFont.GetGlyphIndex('A');
         ushort second = baselineFont.GetGlyphIndex('V');
-        byte[] malformed = BuildGpos("kern", 2, BuildPairFormat1(first, second), malformedLookupOffset: true);
-        Typeface malformedFont = ReadFont(ReplaceTable(source, "GPOS", malformed));
-        var malformedResult = BasicLatinShaper.Shape(malformedFont, "AV", new ShapingOptions { EnableGposPositioning = true });
-        malformedResult.Advances.Should().Equal(baseline.Advances);
+        foreach (byte[] malformed in new[]
+        {
+            BuildGpos("kern", 2, BuildPairFormat1(first, second), malformedLookupOffset: true),
+            BuildGpos("kern", 2, BuildPairFormat1(first, second), malformedLookupListOffset: true)
+        })
+        {
+            Typeface malformedFont = ReadFont(ReplaceTable(source, "GPOS", malformed));
+            var malformedResult = BasicLatinShaper.Shape(malformedFont, "AV", new ShapingOptions { EnableGposPositioning = true });
+            malformedResult.Advances.Should().Equal(baseline.Advances);
+        }
     }
 
     private static byte[] BuildPairFormat1(ushort first, ushort second)
@@ -206,7 +215,12 @@ public class SyntheticGposShapingTests
         return bytes.ToArray();
     }
 
-    private static byte[] BuildGpos(string featureTag, ushort lookupType, byte[] subtable, bool malformedLookupOffset = false)
+    private static byte[] BuildGpos(
+        string featureTag,
+        ushort lookupType,
+        byte[] subtable,
+        bool malformedLookupOffset = false,
+        bool malformedLookupListOffset = false)
     {
         var bytes = new List<byte>();
         U16(bytes, 1);
@@ -222,7 +236,7 @@ public class SyntheticGposShapingTests
         U16(bytes, 1);
         U16(bytes, 0);
         U16(bytes, 1);
-        U16(bytes, 4);
+        U16(bytes, malformedLookupListOffset ? ushort.MaxValue : (ushort)4);
         U16(bytes, lookupType);
         U16(bytes, 0);
         U16(bytes, 1);

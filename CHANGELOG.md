@@ -4,6 +4,9 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 
 ## [Unreleased]
 
+### Added
+- Opt-in GPOS PairPos format 1/2 kerning and MarkBasePos positioning in `BasicLatinShaper`, with per-glyph placement offsets. The default shaping behavior is unchanged.
+
 ## [1.2.3]
 
 ### Fixed

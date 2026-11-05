@@ -75,7 +75,7 @@ Trimming keeps glyph IDs, bounds, and advance metrics but removes outline and re
 
 ## Existing limitations remain unchanged
 
-- The basic shaper is not a complex-script, bidi, or supplementary-plane shaping engine and does not apply GPOS pair adjustments.
+- The basic shaper applies GPOS PairPos (`kern`) and MarkBasePos (`mark`) positioning only when explicitly enabled. It remains a basic Latin/Cyrillic/Greek shaper, not a complex-script, bidi, supplementary-plane, or Indic-reordering engine.
 - The `FontInfo` text measurement overload is a legacy character-indexed width helper; use the `Typeface` overload for cmap-based measurement.
 - Subset output has no normal Unicode cmap coverage and drops layout tables. It is intended for glyph-addressed embedding.
 - The ToUnicode helper supports one BMP scalar mapping per CID, not multi-character sequences or supplementary-plane UTF-16 encoding.
