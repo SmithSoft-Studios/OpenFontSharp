@@ -102,7 +102,7 @@ public class Woff2ConverterTests
     }
 
     [Fact]
-    public void PromotesShortLocaWhenEquivalentPointEncodingNeedsLargerOffsets()
+    public void FurtherFlagOptimizationRetainsShortLocaWhenCanonicalEncodingWouldOverflow()
     {
         const int count = 53000;
         var points = new List<(short X, short Y, bool On)> { (0, short.MinValue, true) };
@@ -127,10 +127,14 @@ public class Woff2ConverterTests
         ];
         input.Add(new("glyf", original, GlyfTransform(1, false, streams)));
         input.Add(new("loca", Words(0, original.Length / 2), []));
-        var expected = BaseTables(1, true);
-        expected.Add(new("glyf", canonical));
-        expected.Add(new("loca", DWords(0, (uint)canonical.Length)));
-        Assert.Equal(Sfnt(expected), Woff2Converter.ToSfnt(Container(input), Copy));
+        byte[] source = Container(input);
+        byte[] actual = Woff2Converter.ToSfnt(source, Copy);
+        var font = SfntInspector.Parse(actual);
+        Assert.False(font.LongLoca);
+        Assert.True(font.Bytes("glyf").Length <= original.Length);
+        Assert.Equal(points, DecodeSimplePoints(font.GlyphRecord(0)));
+        Assert.Equal(0xB1B0AFBAu, SfntInspector.Checksum(actual));
+        Assert.Equal(actual, Woff2Converter.ToSfnt(source, Copy));
     }
 
     [Fact]
@@ -234,6 +238,23 @@ public class Woff2ConverterTests
         int[][] manyParents = Enumerable.Range(0, 65)
             .Select(i => i == 64 ? Array.Empty<int>() : new[] { 64 }).ToArray();
         Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container(GraphFont(manyParents, 65535)), Copy));
+    }
+
+    [Fact]
+    public void RejectsSimpleGlyphWith65536PointsAcrossTwoContours()
+    {
+        byte[] glyph = [
+            .. Words(2, 0, 0, 0, 0, 32767, 65535, 0),
+            .. Enumerable.Range(0, 256).SelectMany(_ => new byte[] { 0x39, 255 })
+        ];
+        byte[][] streams = [
+            Words(2), [.. Encoded255(32768), .. Encoded255(32768)],
+            new byte[65536], new byte[65537], [], new byte[4], []
+        ];
+        var tables = BaseTables(1, false);
+        tables.Add(new("glyf", glyph, GlyfTransform(1, false, streams)));
+        tables.Add(new("loca", Words(0, glyph.Length / 2), []));
+        Assert.Throws<InvalidDataException>(() => Woff2Converter.ToSfnt(Container(tables), Copy));
     }
 
     [Theory]

@@ -36,10 +36,11 @@ public static class Woff2Converter
     /// Font input, declared original sfnt sizes, and reconstructed output are limited to 128 MiB;
     /// the decompressed transformed data is limited to 64 MiB. Metadata and private
     /// data are bounds-checked but are not copied into the sfnt. Reconstructed glyph
-    /// encodings may differ from the original; short loca is promoted to long loca
-    /// if the reconstructed glyph offsets require it. Transformed outlines must have
+    /// encodings may differ from the original; the declared loca format is retained.
+    /// Transformed outlines must have
     /// an acyclic component graph with depth at most 16, at most 65535 expanded points
     /// and contours per glyph, and at most 4194304 expanded points across the font.
+    /// The host callback receives a bounded, write-only, non-seekable output stream.
     /// </remarks>
     public static byte[] ToSfnt(byte[] woff2, BrotliDecompressStreamFunc? brotli = null)
     {
@@ -143,7 +144,7 @@ public static class Woff2Converter
         return (long)offset + length;
     }
 
-    private static short[] ReconstructGlyf(Dictionary<string, byte[]> tables, int originalLocaLength)
+    private static short[] ReconstructGlyf(Dictionary<string, byte[]> tables, int originalLocaLength, bool optimizeFlags = false)
     {
         var source = new Reader(tables["glyf"]);
         Require(source.U16() == 0, "Invalid transformed glyf version.");
@@ -259,6 +260,7 @@ public static class Woff2Converter
                     xs[p] = dx; ys[p] = dy;
                     pointFlags[p] |= (byte)(CoordinateFlag(dx, 2, 16) | CoordinateFlag(dy, 4, 32));
                 }
+                if (optimizeFlags) OptimizePointFlags(pointFlags, xs, ys);
                 for (int p = 0; p < pointCount;)
                 {
                     byte flag = pointFlags[p];
@@ -268,8 +270,8 @@ public static class Woff2Converter
                     if (run > 1) output.WriteByte((byte)(run - 1));
                     p += run;
                 }
-                foreach (int delta in xs) WriteCoordinate(output, delta);
-                foreach (int delta in ys) WriteCoordinate(output, delta);
+                for (int p = 0; p < pointCount; p++) WriteCoordinate(output, xs[p], pointFlags[p], 2, 16);
+                for (int p = 0; p < pointCount; p++) WriteCoordinate(output, ys[p], pointFlags[p], 4, 32);
             }
             Require(xMin <= xMax && yMin <= yMax, "Invalid glyph bounding box.");
             xMins[g] = (short)xMin;
@@ -281,10 +283,10 @@ public static class Woff2Converter
         ValidateComponents(children, pointCounts, contourCounts);
         if (indexFormat == 0 && output.Length > 131070)
         {
-            // WOFF2 retains outlines, not the original TrueType point-flag encoding.
-            // Equivalent canonical records can be larger than the original glyf.
-            indexFormat = 1;
-            BinaryPrimitives.WriteUInt16BigEndian(head.AsSpan(50), 1);
+            // Locally minimal coordinates need not minimize complete flag runs.
+            // Retry with globally minimal point encoding rather than change indexFormat.
+            Require(!optimizeFlags, "Reconstructed glyph offsets cannot fit the declared short loca format.");
+            return ReconstructGlyf(tables, originalLocaLength, optimizeFlags: true);
         }
         var loca = new byte[(count + 1) * (indexFormat == 0 ? 2 : 4)];
         for (int i = 0; i <= count; i++)
@@ -332,11 +334,93 @@ public static class Woff2Converter
     private static int CoordinateFlag(int delta, int shortFlag, int sameFlag)
         => delta == 0 ? sameFlag : delta is >= -255 and <= 255 ? shortFlag | (delta > 0 ? sameFlag : 0) : 0;
 
-    private static void WriteCoordinate(Stream output, int delta)
+    private static void WriteCoordinate(Stream output, int delta, byte flag, int shortBit, int sameBit)
     {
-        if (delta == 0) return;
-        if (delta is >= -255 and <= 255) output.WriteByte((byte)Math.Abs(delta));
-        else WriteWords(output, delta);
+        if ((flag & shortBit) != 0) output.WriteByte((byte)Math.Abs(delta));
+        else if ((flag & sameBit) == 0) WriteWords(output, delta);
+    }
+
+    private static void OptimizePointFlags(byte[] flags, int[] xs, int[] ys)
+    {
+        // A zero delta can cost zero, one, or two bytes. Spending a byte on it
+        // can merge flag runs and reduce the complete record. Find the minimum
+        // over all legal flags and run lengths (1..256) using sliding minima.
+        const int window = 257;
+        var starts = new int[128 * window];
+        var costs = new int[128 * window];
+        var heads = new int[128];
+        var tails = new int[128];
+        var prefixes = new int[128];
+        var previousCosts = new int[128];
+        var previousValid = new bool[128];
+        var best = new int[flags.Length + 1];
+        var choices = new byte[flags.Length + 1];
+        var lengths = new ushort[flags.Length + 1];
+        // Only the first flag determines OVERLAP_SIMPLE; later flags can share it in a run.
+        bool overlap = (flags[0] & 64) != 0;
+        for (int i = 1; i <= flags.Length; i++)
+        {
+            best[i] = int.MaxValue;
+            for (int flag = 0; flag < 128; flag++)
+            {
+                if ((flag & 8) != 0) continue;
+                int xCost = CoordinateCost(xs[i - 1], flag, 2, 16);
+                int yCost = CoordinateCost(ys[i - 1], flag, 4, 32);
+                bool valid = (flag & 1) == (flags[i - 1] & 1) &&
+                    (i == 1 ? (flag & 64) == (flags[0] & 64) : overlap || (flag & 64) == 0) &&
+                    xCost >= 0 && yCost >= 0;
+                if (!valid)
+                {
+                    heads[flag] = tails[flag] = prefixes[flag] = 0;
+                    previousValid[flag] = false;
+                    continue;
+                }
+                int cost = xCost + yCost, offset = flag * window;
+                if (previousValid[flag])
+                {
+                    int start = i - 2;
+                    int key = best[start] - (prefixes[flag] - previousCosts[flag]);
+                    while (heads[flag] != tails[flag])
+                    {
+                        int back = (tails[flag] + window - 1) % window;
+                        if (costs[offset + back] < key) break;
+                        tails[flag] = back;
+                    }
+                    starts[offset + tails[flag]] = start;
+                    costs[offset + tails[flag]] = key;
+                    tails[flag] = (tails[flag] + 1) % window;
+                }
+                prefixes[flag] += cost;
+                while (heads[flag] != tails[flag] && starts[offset + heads[flag]] < i - 256)
+                    heads[flag] = (heads[flag] + 1) % window;
+                int candidate = best[i - 1] + 1 + cost, run = 1;
+                if (heads[flag] != tails[flag])
+                {
+                    int repeated = costs[offset + heads[flag]] + prefixes[flag] + 2;
+                    if (repeated < candidate)
+                    {
+                        candidate = repeated;
+                        run = i - starts[offset + heads[flag]];
+                    }
+                }
+                if (candidate < best[i])
+                {
+                    best[i] = candidate;
+                    choices[i] = (byte)flag;
+                    lengths[i] = (ushort)run;
+                }
+                previousValid[flag] = true;
+                previousCosts[flag] = cost;
+            }
+        }
+        for (int end = flags.Length; end > 0; end -= lengths[end])
+            flags.AsSpan(end - lengths[end], lengths[end]).Fill(choices[end]);
+    }
+
+    private static int CoordinateCost(int delta, int flag, int shortBit, int sameBit)
+    {
+        if ((flag & shortBit) == 0) return (flag & sameBit) == 0 ? 2 : delta == 0 ? 0 : -1;
+        return (flag & sameBit) != 0 ? delta is >= 0 and <= 255 ? 1 : -1 : delta is >= -255 and <= 0 ? 1 : -1;
     }
 
     private static (int X, int Y) Triplet(int flag, Reader stream)
