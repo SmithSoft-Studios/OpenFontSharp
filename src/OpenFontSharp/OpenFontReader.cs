@@ -543,6 +543,8 @@ namespace OpenFontSharp
             NameEntry? nameEntry = rd.Read(new NameEntry());
             Head head = rd.ReadRequired(new Head());
             MaxProfile maxProfile = rd.ReadRequired(new MaxProfile());
+            if (maxProfile.GlyphCount == 0)
+                throw new InvalidDataException("maxp.numGlyphs must be greater than zero.");
             HorizontalHeader horizontalHeader = rd.ReadRequired(new HorizontalHeader());
             HorizontalMetrics? horizontalMetrics = rd.Read(new HorizontalMetrics(horizontalHeader.NumberOfHMetrics, maxProfile.GlyphCount));
             VerticalHeader? vhea = rd.Read(new VerticalHeader());

@@ -28,6 +28,7 @@ public class BitmapTableTests
         Assert.Equal(1, glyph.Bounds.YMin);
         Assert.Equal(6, glyph.Bounds.XMax);
         Assert.Equal(3, glyph.Bounds.YMax);
+        Assert.Equal((ushort)9, BitmapAdvance(glyph));
         using var output = new MemoryStream();
         face.ReadBitmapContent(glyph, output);
         Assert.Equal(new byte[] { 0xA5, 0x5A }, output.ToArray());
@@ -203,6 +204,7 @@ public class BitmapTableTests
         Assert.Equal(-2, glyph.Bounds.XMin);
         Assert.Equal(1, glyph.Bounds.YMin);
         Assert.Equal(6, glyph.Bounds.XMax);
+        Assert.Equal((ushort)9, BitmapAdvance(glyph));
         using var output = new MemoryStream();
         face.ReadBitmapContent(glyph, output);
         Assert.Equal(new byte[] { 0xA5, 0x5A }, output.ToArray());
@@ -272,6 +274,7 @@ public class BitmapTableTests
         using var restored = new MemoryStream(bytes);
         face.RestoreUp(ticket, restored);
         Assert.False(face.IsTrimmed());
+        Assert.Equal((ushort)9, BitmapAdvance(face.GetGlyph(7)));
         using var output = new MemoryStream();
         face.ReadBitmapContent(face.GetGlyph(7), output);
         Assert.Equal(new byte[] { 0xA5, 0x5A }, output.ToArray());
@@ -284,6 +287,16 @@ public class BitmapTableTests
     {
         var (location, data) = BitmapTables(color, 1);
         using var font = Font(color, location, data, omitData: true);
+        Assert.Throws<InvalidDataException>(() => new OpenFontReader().Read(font));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Reader_RejectsZeroMaxpGlyphCount(bool color)
+    {
+        var (location, data) = BitmapTables(color, 1);
+        using var font = Font(color, location, data, glyphCount: 0);
         Assert.Throws<InvalidDataException>(() => new OpenFontReader().Read(font));
     }
 
@@ -359,7 +372,8 @@ public class BitmapTableTests
 
     // Reuse only mandatory non-bitmap metadata from the licensed fixture.
     // All bitmap bytes and their enclosing SFNT directory are synthetic.
-    private static MemoryStream Font(bool color, byte[] location, byte[] data, bool omitData = false)
+    private static MemoryStream Font(bool color, byte[] location, byte[] data, bool omitData = false,
+        ushort? glyphCount = null)
     {
         var path = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Resources",
             "Fonts", "TTF", "Roboto", "Roboto-Regular.ttf");
@@ -377,6 +391,7 @@ public class BitmapTableTests
         }
         tables.Add(color ? "CBLC" : "EBLC", location);
         if (!omitData) tables.Add(color ? "CBDT" : "EBDT", data);
+        if (glyphCount.HasValue) Put16(tables["maxp"], 4, glyphCount.Value);
         var output = new MemoryStream();
         output.Write(new byte[12 + tables.Count * 16]);
         byte[] header = output.GetBuffer();
@@ -396,6 +411,9 @@ public class BitmapTableTests
 
     private static void Put16(byte[] bytes, int offset, ushort value) =>
         BinaryPrimitives.WriteUInt16BigEndian(bytes.AsSpan(offset), value);
+    private static ushort BitmapAdvance(Glyph glyph) =>
+        Assert.IsType<ushort>(typeof(Glyph).GetProperty("BitmapGlyphAdvanceWidth",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(glyph));
     private static void Put32(byte[] bytes, int offset, uint value) =>
         BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(offset), value);
     private static void Write16(Stream stream, ushort value)
