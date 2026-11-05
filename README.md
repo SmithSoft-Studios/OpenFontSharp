@@ -23,6 +23,9 @@ The NuGet package includes XML API documentation for IntelliSense. See [compatib
 | Unshaped advance measurement | `TextMeasurer.MeasureWidth(Typeface, ...)` | Estimating simple text widths in points or pixels |
 | Basic glyph substitution and optional GPOS positioning | `BasicLatinShaper` | Simple Latin text in a document pipeline |
 | Glyph subsetting and ID remapping | `FontSubsetter` | Reducing embedded font size for glyph-addressed PDF fonts |
+| Web-font conversion | `Woff2Converter.ToSfnt`, `OpenFontReader` | Reading WOFF 2.0 fonts, or turning them into plain TTF/OTF bytes (host-supplied Brotli) |
+| Colour glyph data | `Typeface.GetColorLayers`, `GetPalette`, `ColorTableVersion` | Reading COLR v0 layers and CPAL palettes; COLR v1 fonts load but their paint graphs are not interpreted |
+| Variable-font instances | `FontSubsetter.Subset(..., axisCoordinates)` | Producing a static TrueType instance at chosen axis values |
 | ToUnicode CMap generation | `ToUnicodeCMapBuilder` | Mapping two-byte PDF character IDs to Unicode scalar values, including supplementary planes |
 | Trim and restore | `TypefaceExtensions.TrimDown` / `RestoreUp` | Keeping metrics while temporarily unloading outlines |
 
@@ -158,6 +161,10 @@ Woff2DefaultBrotliDecompressFunc.DecompressHandler = (compressed, output) =>
 
 `Woff2Converter.ToSfnt(woff2Bytes)` returns standalone TTF/OTF bytes, reconstructing transformed `glyf`, `loca`, and `hmtx` tables per the [W3C WOFF2 Recommendation](https://www.w3.org/TR/WOFF2/). An optional second argument supplies a per-call Brotli decoder instead of the default hook. No Brotli package is required by the library; without a hook it throws `NotSupportedException`. WOFF2 collections are not supported. The byte-based WOFF1 subsetter uses built-in .NET zlib decompression and does not need the reader hook.
 
+### Malformed and untrusted fonts
+
+Reading and subsetting validate lengths, counts and offsets against the data. Truncated or corrupt input throws `OpenFontNotSupportedException`, `NotSupportedException` or `InvalidDataException`; counts read from a file are bounded before anything is allocated. The audit covers byte flips and truncation across every table of a real font (Roboto) plus targeted tests for each format added in 1.4.0; it is not exhaustive fuzzing, so treat fonts from untrusted sources with the same care as any other untrusted input (for example by reading them in a process with limited memory and time). See the [test coverage matrix](docs/TEST-COVERAGE.md) for what is and is not covered.
+
 ## Font subsetting
 `OpenFontSharp.Subsetting.FontSubsetter` keeps only the glyphs you use (plus `.notdef` and any composite components), renumbers them contiguously and returns the subset font with an old-to-new glyph id map. After container decoding, TrueType and CFF1 outlines are copied verbatim; CFF2 charstrings are reduced to their default instance and emitted as static CFF1, unless axis coordinates are supplied for TrueType variable-font instantiation.
 
@@ -171,17 +178,17 @@ The output is always a plain TrueType (`0x00010000`) or CFF (`OTTO`) font. Witho
 | Input | Test font | Result |
 |---|---|---|
 | TrueType (`.ttf`) | Roboto, Shantell Sans (static) | Supported |
-| TrueType variable font | Shantell Sans (default and non-default); synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
+| TrueType variable font | Shantell Sans (default and non-default); checked against fontTools at three axis settings; synthetic axis-coordinate tests | Supported: default instance, or explicit axis coordinates via the dictionary overload. Static output drops variation tables |
 | OpenType with CFF outlines (`.otf`, `CFF `) | Great Vibes | Supported for name-keyed CFF. Subroutines are kept whole, not subset |
-| CID-keyed CFF | hand-built CFF table | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
+| CID-keyed CFF | Source Han Sans JP subset (outlines, widths and glyph count checked against fontTools); hand-built CFF tables | Supported: CIDs, used Font DICTs and FDSelect formats 0/3 are preserved; subroutines are kept whole |
 | CFF glyphs using the deprecated `seac` accent operator | hand-built CFF table | Supported: the base and accent glyphs are retained automatically (resolved through StandardEncoding and the charset); unresolvable components throw `NotSupportedException` |
 | OpenType with CFF2 outlines (variable `.otf`) | Synthetic CFF2 with `blend` / `vsindex` | Supported: reduced to the default instance and emitted as static CFF1 (`CFF `) in an `OTTO` font; `CFF2`, `fvar`, `avar`, `HVAR`, `MVAR` and `STAT` are dropped |
 | TrueType/OpenType collection (`.ttc`), as bytes | Roboto Regular + Bold | Throws `NotSupportedException` unless you pass a font index; supported with `Subset(bytes, fontIndex, glyphs)` |
 | Collection member read with `OpenFontReader.Read(stream, offset)` | Roboto Regular + Bold | Supported |
 | WOFF 1.0 (`.woff`) | Roboto, Great Vibes | Supported: decoded, then subset as TTF/OTF |
-| WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto; in-test Great Vibes wrapper | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
-| Unicode cmap output (opt-in) | Synthetic BMP/supplementary mappings; Great Vibes; Roboto collection | Supported: `includeUnicodeCmap: true` writes formats 4 and 12 with remapped glyph IDs; off by default |
-| Colour / bitmap tables | Synthetic reader tests | Reading only; colour/bitmap-aware subsetting is not implemented. Outline subsets drop these tables; bitmap-only inputs are returned whole |
+| WOFF 2.0 (`.woff2`) | Synthetic simple/composite glyphs and metrics; Roboto (every glyph compared with the TTF and a fontTools reference); in-test Great Vibes wrapper | Supported: host Brotli hook required, decoded then subset as TTF/OTF; collections excluded |
+| Unicode cmap output (opt-in) | Synthetic BMP/supplementary mappings; Great Vibes; Roboto collection; Roboto (every retained code point checked against the source outlines) | Supported: `includeUnicodeCmap: true` writes formats 4 and 12 with remapped glyph IDs; off by default |
+| Colour / bitmap tables | Synthetic reader tests; Noto Emoji COLR v1 subset (loads and subsets; compared with fontTools) | Reading only; colour/bitmap-aware subsetting is not implemented. Outline subsets drop these tables; bitmap-only inputs are returned whole |
 | Unrecognised data | n/a | Throws `NotSupportedException` |
 
 What a subset keeps: `head`, `hhea`, `maxp`, `hmtx`, `OS/2`, `name`, hinting (`cvt `, `fpgm`, `prep`, `gasp`) and the outline tables (`glyf`/`loca` or `CFF `). `post` becomes version 3 (no glyph names, though CFF glyph names survive in the charset), and by default `cmap` is reduced to an empty table, since PDF Identity-H embedding does not use it. Layout and kerning tables (`GSUB`, `GPOS`, `GDEF`, `kern`) are dropped.
