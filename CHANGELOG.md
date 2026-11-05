@@ -7,6 +7,8 @@ All notable changes are recorded here. Versions follow [Semantic Versioning](htt
 ### Added
 - GPOS positioning through the basic shaper also applies lookups wrapped in extension lookups (type 9), as large fonts use; checked on Roboto and Shantell Sans.
 - Opt-in GPOS PairPos format 1/2 kerning and MarkBasePos positioning in `BasicLatinShaper`, with per-glyph placement offsets. The default shaping behavior is unchanged.
+- `ToUnicodeCMapBuilder` now accepts Unicode scalar sequences per CID, including supplementary code points, and emits valid `bfchar`/`bfrange` blocks.
+- Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
 
 ### Fixed
 - Read-only COLR v0 layers and CPAL v0/v1 BGRA palettes via `Typeface.GetColorLayers`, `PaletteCount`, and `GetPalette`, with table-local bounds and glyph/palette reference validation. COLR v1 paint graphs and CPAL v1 metadata APIs remain unsupported.
