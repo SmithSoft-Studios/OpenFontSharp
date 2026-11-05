@@ -116,7 +116,8 @@ public class CffSubsetBuilderTests
         var actual = InspectCidCff(subset);
 
         actual.FontDicts.Should().HaveCount(1);
-        actual.TopDict.Should().NotContainKey(OpFdSelect);
+        // FDSelect is required in a CID-keyed font even when a single FD remains.
+        actual.TopDict.Should().ContainKey(OpFdSelect);
         actual.Selectors.Should().Equal(0, 0);
         actual.Cids.Should().Equal(0, 45);
     }

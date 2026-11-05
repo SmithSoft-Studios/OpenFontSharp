@@ -242,9 +242,8 @@ public static class CffSubsetBuilder
         var globalSubrBytes = cff.AsSpan(globalSubrs.Start, globalSubrs.End - globalSubrs.Start).ToArray();
         var charsetBytes = BuildCharset(cids, retainedGlyphs);
         var charStringsBytes = Index.Write(retainedGlyphs.Select(glyph => charStrings.Item(cff, glyph).ToArray()).ToList());
-        var fdSelectBytes = usedFds.Length > 1
-            ? BuildFdSelect(selectors, sourceFdSelectFormat)
-            : [];
+        // The CFF specification requires FDSelect in every CID-keyed font, even when only one FD remains.
+        var fdSelectBytes = BuildFdSelect(selectors, sourceFdSelectFormat);
 
         var topEntries = topDict.Without(
             OpCharset, OpEncoding, OpCharStrings, OpPrivate, OpUniqueId, OpXuid, OpFdArray, OpFdSelect);
@@ -259,12 +258,9 @@ public static class CffSubsetBuilder
             dict.Write(Dict.Offset(fdArrayOffset));
             dict.WriteByte(12);
             dict.WriteByte(36);
-            if (usedFds.Length > 1)
-            {
-                dict.Write(Dict.Offset(fdSelectOffset));
-                dict.WriteByte(12);
-                dict.WriteByte(37);
-            }
+            dict.Write(Dict.Offset(fdSelectOffset));
+            dict.WriteByte(12);
+            dict.WriteByte(37);
             return dict.ToArray();
         }
 
@@ -272,7 +268,7 @@ public static class CffSubsetBuilder
         int topIndexLength = Index.WrittenLength(topDictLength);
         int prefixLength = 4 + nameBytes.Length + topIndexLength + stringBytes.Length + globalSubrBytes.Length;
         int charsetOffset = prefixLength;
-        int fdSelectOffset = fdSelectBytes.Length == 0 ? 0 : charsetOffset + charsetBytes.Length;
+        int fdSelectOffset = charsetOffset + charsetBytes.Length;
         int charStringsOffset = charsetOffset + charsetBytes.Length + fdSelectBytes.Length;
         int fdArrayOffset = charStringsOffset + charStringsBytes.Length;
 
